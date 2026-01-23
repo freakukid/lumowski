@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -3.11:*)",
+      "Bash(PYTHONPATH=. timeout 40 python:*)",
+      "Bash(node:*)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill //F //PID 9052)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(npx vitest:*)",
+      "Bash(dir:*)",
+      "Bash(curl:*)",
+      "Bash(npx nuxi:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill //F //PID 20344)",
+      "Bash(taskkill //F //PID 16512)",
+      "Bash(wc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(xargs:*)",
+      "Bash(uniq:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?
+  name      String
+  role      Role     @default(USER)
+  googleId  String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businessMemberships   BusinessMember[]
+  createdInviteCodes    InviteCode[]
+  createdItems          InventoryItem[]
+  inventoryLogs         InventoryLog[]
+  undoneInventoryLogs   InventoryLog[]           @relation("UndoneByUser")
+  operations            Operation[]
+  undoneOperations      Operation[]              @relation("UndoneByUser")
+
+  @@map("users")
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members               BusinessMember[]
+  inviteCodes           InviteCode[]
+  inventorySchema       InventorySchema?
+  inventoryItems        InventoryItem[]
+  inventoryLogs         InventoryLog[]
+  operations            Operation[]
+
+  @@map("businesses")
+}
+
+model BusinessMember {
+  id         String       @id @default(uuid())
+  role       BusinessRole @default(EMPLOYEE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+
+  @@unique([businessId, userId])
+  @@map("business_members")
+}
+
+model InviteCode {
+  id          String        @id @default(uuid())
+  code        String        @unique
+  role        BusinessRole  @default(EMPLOYEE)
+  expiresAt   DateTime?
+  maxUses     Int?
+  usedCount   Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId  String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById String
+
+  @@map("invite_codes")
+}
+
+model InventorySchema {
+  id        String   @id @default(uuid())
+  columns   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @unique
+
+  @@map("inventory_schemas")
+}
+
+model InventoryItem {
+  id        String   @id @default(uuid())
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business     Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId   String
+  createdBy    User                   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById  String
+
+  @@map("inventory_items")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BusinessRole {
+  OWNER
+  BOSS
+  EMPLOYEE
+}
+
+enum LogAction {
+  ITEM_CREATED
+  ITEM_UPDATED
+  ITEM_DELETED
+  SCHEMA_UPDATED
+}
+
+enum OperationType {
+  RECEIVING
+}
+
+model InventoryLog {
+  id            String     @id @default(uuid())
+  action        LogAction
+  itemId        String?
+  itemName      String?
+  snapshot      Json?      // Full item data at time of action
+  changes       Json?      // Array of { field, fieldName, oldValue, newValue }
+  schemaChanges Json?      // For SCHEMA_UPDATED actions
+  undoable      Boolean    @default(true)
+  undoneAt      DateTime?
+  undoneById    String?
+  createdAt     DateTime   @default(now())
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  undoneBy   User?    @relation("UndoneByUser", fields: [undoneById], references: [id])
+
+  // Indexes for common query patterns
+  @@index([businessId, createdAt(sort: Desc)])  // For listing logs by business, sorted by date
+  @@index([businessId, userId])                  // For filtering logs by user within a business
+  @@index([businessId, action])                  // For filtering logs by action type within a business
+  @@map("inventory_logs")
+}
+
+model Operation {
+  id          String        @id @default(uuid())
+  type        OperationType
+  date        DateTime
+  reference   String?
+  supplier    String?
+  notes       String?
+  items       Json          // [{ itemId, itemName, quantity, previousQty, newQty }]
+  totalQty    Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  undoneAt    DateTime?
+  undoneById  String?
+
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId  String
+  user        User          @relation(fields: [userId], references: [id])
+  userId      String
+  undoneBy    User?         @relation("UndoneByUser", fields: [undoneById], references: [id])
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@map("operations")
+}

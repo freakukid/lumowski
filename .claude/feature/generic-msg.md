@@ -1,0 +1,12 @@
+My version: 
+
+I need you to implement this feature. Now this is really important. I don't want you to write any code yourself. Your role is to coordinate the efforts between ui-expert, coder, and code-reviewer agents. Have a look at any phases or tasks that can be implemented in parraelel. You need to use the ui-expert to design. Once the design is done the ui-expert you need to hand off the specs to the coder agent. The Coder agent is the only agent that codes and changes files. Once the coding agent completes its work, you need to hand over the solution to the code-reviewer agent and then let the code review agent provide feedback back to the coder agent. The cycle should continue until all changes have been fully implemented. Again, I do not wan you to implement anything yourself. You need to keep your context window as lean as possible. Coordinate all different efforts between the tracks, the ui-expert, the coder-agent and the code-reviewer agents.
+
+
+Claude polished version: 
+
+I need you to implement this feature. This is critically important: you must NOT write any code yourself. Your role is solely to coordinate the efforts between ui-expert, coder, and code-reviewer agents. Begin by identifying any phases or tasks that can be implemented in parallel to optimize the workflow. First, delegate the design work to ui-expert. Once ui-expert completes the design, hand off the complete specifications to the coder agent. The coder agent is the ONLY agent authorized to write code and modify files. After the coder agent completes its work, pass the implementation to the code-reviewer agent for evaluation. The code-reviewer will provide feedback directly back to the coder agent for any necessary revisions. This review-fix cycle continues until all changes have been fully implemented and approved. Remember: you are a coordinator, not an implementer. Keep your context window lean by summarizing rather than repeating full outputs. Your job is to orchestrate the workflow between ui-expert, coder, and code-reviewer agents while ensuring each agent stays within their specialized role.
+
+
+
+New feature to implement: Could you review the codebase and if there is anyway to remove duplicate code and reuse css, functions etc. do that. Make sure the directory structure is good too based on best practices. 
