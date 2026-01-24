@@ -193,7 +193,7 @@
               :column-id="sortPreference.columnId"
               :direction="sortPreference.direction"
               @update:column-id="handleSortColumnChange"
-              @toggle-direction="toggleDirection"
+              @toggle-direction="handleToggleDirection"
             />
             <InventoryDynamicInventoryCard
               :items="displayItems"
@@ -319,10 +319,8 @@ const mobileFilterTarget = computed(() => {
   return mobileFilterTargetRef.value ? '#mobile-filter-target' : null
 })
 
-// Sorted items computed property
-const displayItems = computed(() => {
-  return sortItems(items.value, sortedColumns.value)
-})
+// Display items - no client-side sorting, server handles it
+const displayItems = computed(() => items.value)
 
 // Initialize sorting and filtering when columns are loaded
 watch(
@@ -336,14 +334,43 @@ watch(
   { immediate: true }
 )
 
-// Handle column header click for sorting
+// Handle column header click for sorting (re-fetches from server)
 const handleSort = (columnId: string) => {
   setSort(columnId)
+  const searchColumns = getSearchColumnIds(textColumns.value)
+  fetchItems({
+    page: 1,
+    search: searchQuery.value,
+    searchColumns,
+    sortColumn: sortPreference.value.columnId,
+    sortDirection: sortPreference.value.direction,
+  })
 }
 
-// Handle mobile dropdown column change
+// Handle mobile dropdown column change (re-fetches from server)
 const handleSortColumnChange = (columnId: string | null) => {
   setSort(columnId)
+  const searchColumns = getSearchColumnIds(textColumns.value)
+  fetchItems({
+    page: 1,
+    search: searchQuery.value,
+    searchColumns,
+    sortColumn: columnId,
+    sortDirection: sortPreference.value.direction,
+  })
+}
+
+// Handle toggle direction (re-fetches from server)
+const handleToggleDirection = () => {
+  toggleDirection()
+  const searchColumns = getSearchColumnIds(textColumns.value)
+  fetchItems({
+    page: 1,
+    search: searchQuery.value,
+    searchColumns,
+    sortColumn: sortPreference.value.columnId,
+    sortDirection: sortPreference.value.direction,
+  })
 }
 
 // Refetch data when business changes
@@ -357,7 +384,10 @@ watch(
       inventoryStore.setInitiallyLoaded(false)
       searchQuery.value = ''
       await fetchSchema()
-      await fetchItems()
+      await fetchItems({
+        sortColumn: sortPreference.value.columnId,
+        sortDirection: sortPreference.value.direction,
+      })
     }
   }
 )
@@ -366,7 +396,11 @@ watch(
 onMounted(async () => {
   await initAuth()
   await fetchSchema()
-  await fetchItems()
+  // Fetch with current sort params (may be restored from localStorage by initSort)
+  await fetchItems({
+    sortColumn: sortPreference.value.columnId,
+    sortDirection: sortPreference.value.direction,
+  })
 })
 
 // Get text columns for search filter
@@ -380,13 +414,25 @@ const debouncedSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
     const searchColumns = getSearchColumnIds(textColumns.value)
-    fetchItems({ search: searchQuery.value, searchColumns })
+    fetchItems({
+      page: 1,
+      search: searchQuery.value,
+      searchColumns,
+      sortColumn: sortPreference.value.columnId,
+      sortDirection: sortPreference.value.direction,
+    })
   }, 300)
 }
 
 const changePage = (page: number) => {
   const searchColumns = getSearchColumnIds(textColumns.value)
-  fetchItems({ page, search: searchQuery.value, searchColumns })
+  fetchItems({
+    page,
+    search: searchQuery.value,
+    searchColumns,
+    sortColumn: sortPreference.value.columnId,
+    sortDirection: sortPreference.value.direction,
+  })
 }
 
 // Filter handlers

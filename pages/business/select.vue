@@ -134,18 +134,35 @@
               </div>
             </div>
           </button>
-          <!-- Delete button (OWNER only) -->
-          <button
-            v-if="business.role === 'OWNER'"
-            @click.stop="openDeleteModal(business)"
-            class="card-delete-btn"
-            title="Delete business"
-            :disabled="isDeletingBusiness"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+          <!-- Card action buttons container -->
+          <div class="card-actions">
+            <!-- Manage Business button (OWNER and BOSS roles) -->
+            <button
+              v-if="business.role === 'OWNER' || business.role === 'BOSS'"
+              class="card-action-btn card-manage-btn"
+              title="Manage business settings"
+              :disabled="managingBusinessId === business.id"
+              @click.stop="handleManageBusiness(business)"
+            >
+              <span v-if="managingBusinessId === business.id" class="loading-spinner small"></span>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            <!-- Delete button (OWNER only) -->
+            <button
+              v-if="business.role === 'OWNER'"
+              @click.stop="openDeleteModal(business)"
+              class="card-action-btn card-delete-btn"
+              title="Delete business"
+              :disabled="isDeletingBusiness"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Create new business card -->
@@ -290,6 +307,7 @@ const selectError = ref('')
 const inviteCode = ref('')
 const joinError = ref('')
 const isJoining = ref(false)
+const managingBusinessId = ref<string | null>(null)
 
 // Delete business modal state
 const showDeleteModal = ref(false)
@@ -341,6 +359,29 @@ const handleSelectBusiness = async (business: UserBusinessInfo) => {
   }
 }
 
+const handleManageBusiness = async (business: UserBusinessInfo) => {
+  selectError.value = ''
+  managingBusinessId.value = business.id
+
+  try {
+    // If this business is not the currently selected one, switch to it first
+    if (currentBusinessId.value !== business.id) {
+      await authStore.selectBusiness(business.id)
+    }
+    // Navigate to business settings
+    router.push('/business')
+  } catch (e: unknown) {
+    const err = e as ApiError
+    // If auth fails (e.g., JWT expired), redirect to login
+    if (err.statusCode === 401 || err.data?.statusCode === 401) {
+      await navigateTo('/login')
+      return
+    }
+    selectError.value = extractApiError(e, 'Failed to access business settings')
+    managingBusinessId.value = null
+  }
+}
+
 const handleJoinWithCode = async () => {
   if (!inviteCode.value.trim()) return
 
@@ -348,20 +389,29 @@ const handleJoinWithCode = async () => {
   isJoining.value = true
 
   try {
-    const business = await joinBusiness(inviteCode.value.trim())
+    const result = await joinBusiness(inviteCode.value.trim())
+
+    // Check if join was successful
+    if (!result.success) {
+      joinError.value = result.error
+      return
+    }
+
+    const business = result.business
     // Add the new business to the list
-    authStore.addBusiness({
+    const newBusinessInfo: UserBusinessInfo = {
       id: business.id,
       name: business.name,
       role: business.members?.find((m) => m.userId === authStore.user?.id)?.role || 'EMPLOYEE',
       memberCount: business.members?.length || 1,
       joinedAt: new Date().toISOString(),
-    })
+    }
+    authStore.addBusiness(newBusinessInfo)
     // Refresh the businesses list
     businesses.value = authStore.businesses
     inviteCode.value = ''
     // Auto-select the newly joined business
-    await handleSelectBusiness(authStore.businesses[0])
+    await handleSelectBusiness(newBusinessInfo)
   } catch (e: unknown) {
     joinError.value = extractApiError(e, 'Failed to join business')
   } finally {
@@ -822,12 +872,39 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   @apply relative;
 }
 
-/* Card Delete Button */
+/* Card Actions Container */
+.card-actions {
+  @apply absolute top-1/2 -translate-y-1/2 right-3 flex flex-nowrap items-center gap-2 z-10 mr-4;
+  width: 100px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Card Action Button - base styles */
+.card-action-btn {
+  @apply w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg transition-all;
+}
+
+/* Manage Button */
+.card-manage-btn {
+  background: rgba(var(--color-primary-500), 0.08);
+  color: rgb(var(--color-primary-500));
+}
+
+.card-manage-btn:hover {
+  background: rgba(var(--color-primary-500), 0.15);
+  color: rgb(var(--color-primary-600));
+}
+
+.card-manage-btn:focus-visible {
+  outline: 2px solid rgb(var(--color-primary-500));
+  outline-offset: 2px;
+}
+
+/* Delete Button */
 .card-delete-btn {
-  @apply absolute top-1/2 -translate-y-1/2 right-12 w-9 h-9 flex items-center justify-center rounded-lg transition-all z-10;
   background: rgba(var(--color-error-500), 0.08);
   color: rgb(var(--color-error-500));
-  opacity: 0;
 }
 
 .card-delete-btn:hover {
@@ -835,18 +912,28 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   color: rgb(var(--color-error-600));
 }
 
+.card-delete-btn:focus-visible {
+  outline: 2px solid rgb(var(--color-error-500));
+  outline-offset: 2px;
+}
+
 .card-delete-btn:disabled {
   @apply opacity-50 cursor-not-allowed;
 }
 
-/* Show delete button on hover (desktop) */
-.business-card-wrapper:hover .card-delete-btn {
+/* Show action buttons on hover (desktop) */
+.business-card-wrapper:hover .card-actions {
   opacity: 1;
 }
 
-/* Always show delete button on mobile */
+/* Show action buttons on focus within (keyboard navigation) */
+.card-actions:focus-within {
+  opacity: 1;
+}
+
+/* Always show action buttons on mobile for better discoverability */
 @media (max-width: 768px) {
-  .card-delete-btn {
+  .card-actions {
     opacity: 1;
   }
 }

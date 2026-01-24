@@ -31,7 +31,7 @@
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center">
           <span class="text-xs font-medium text-primary-600">
-            {{ log.user.name.charAt(0).toUpperCase() }}
+            {{ log.user?.name?.charAt(0)?.toUpperCase() || '' }}
           </span>
         </div>
         <span class="text-sm text-surface-700">{{ log.user.name }}</span>

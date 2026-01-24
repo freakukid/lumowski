@@ -1,75 +1,46 @@
 <template>
   <div class="business-page">
-    <!-- Page Header -->
+    <!-- Page Header with Back Navigation -->
     <div class="page-header">
-      <h1 class="page-title">Business Settings</h1>
-      <p class="page-subtitle">Manage your team and invite codes</p>
+      <div class="header-content">
+        <NuxtLink to="/" class="back-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>Back to Inventory</span>
+        </NuxtLink>
+        <h1 class="page-title">Business Settings</h1>
+        <p class="page-subtitle">Manage your team and invite codes</p>
+      </div>
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoadingBusiness" class="loading-container">
+    <div v-if="isLoadingBusiness" class="loading-container" aria-live="polite">
       <div class="loading-spinner"></div>
       <span>Loading business details...</span>
     </div>
 
     <template v-else-if="business">
-      <!-- Stats Row -->
-      <div class="stats-row">
-        <!-- Total Members -->
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-primary">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
+      <!-- Mobile: Sidebar content above tabs -->
+      <div class="mobile-business-info lg:hidden">
+        <div class="mobile-business-card">
+          <div class="business-avatar-small">
+            {{ business.name?.charAt(0)?.toUpperCase() || '' }}
           </div>
-          <div class="stat-value">{{ business.members?.length || 0 }}</div>
-          <div class="stat-label">Total Members</div>
-        </div>
-
-        <!-- Active Invites (OWNER/BOSS only) -->
-        <div v-if="authStore.canManageMembers" class="stat-card">
-          <div class="stat-icon stat-icon-accent">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-            </svg>
-          </div>
-          <div class="stat-value">{{ business.inviteCodes?.length || 0 }}</div>
-          <div class="stat-label">Active Invites</div>
-        </div>
-
-        <!-- Placeholder for EMPLOYEE (they don't see invites) -->
-        <div v-else class="stat-card">
-          <div class="stat-icon stat-icon-accent">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-          <div class="stat-value">Active</div>
-          <div class="stat-label">Status</div>
-        </div>
-
-        <!-- Your Role -->
-        <div class="stat-card">
-          <div class="stat-icon" :class="roleIconClass">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
-          </div>
-          <div class="stat-value-badge">
+          <div class="mobile-business-details">
+            <h2 class="mobile-business-name">{{ business.name }}</h2>
             <span class="role-badge" :class="roleClass">{{ authStore.businessRole }}</span>
           </div>
-          <div class="stat-label">Your Role</div>
         </div>
 
-        <!-- Member Since -->
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-primary">
+        <!-- Quick Actions (Mobile) -->
+        <div v-if="authStore.canManageMembers" class="mobile-quick-actions">
+          <button @click="showInviteModal = true" class="mobile-create-invite-btn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-          </div>
-          <div class="stat-value text-lg lg:text-xl">{{ memberSinceFormatted }}</div>
-          <div class="stat-label">Member Since</div>
+            Create Invite Code
+          </button>
         </div>
       </div>
 
@@ -77,11 +48,10 @@
       <div class="main-layout">
         <!-- Sidebar (Desktop only) -->
         <aside class="sidebar">
-          <!-- Business Info Card -->
           <div class="sidebar-card">
             <!-- Business Avatar -->
             <div class="business-avatar">
-              {{ business.name.charAt(0).toUpperCase() }}
+              {{ business.name?.charAt(0)?.toUpperCase() || '' }}
             </div>
 
             <!-- Business Name -->
@@ -89,6 +59,18 @@
 
             <!-- Role Badge -->
             <span class="role-badge" :class="roleClass">{{ authStore.businessRole }}</span>
+
+            <!-- Quick Stats -->
+            <div class="sidebar-stats">
+              <div class="sidebar-stat">
+                <span class="sidebar-stat-value">{{ business.members?.length || 0 }}</span>
+                <span class="sidebar-stat-label">Members</span>
+              </div>
+              <div v-if="authStore.canManageMembers" class="sidebar-stat">
+                <span class="sidebar-stat-value">{{ business.inviteCodes?.length || 0 }}</span>
+                <span class="sidebar-stat-label">Invites</span>
+              </div>
+            </div>
 
             <!-- Quick Actions -->
             <div v-if="authStore.canManageMembers" class="quick-actions">
@@ -103,7 +85,7 @@
             <!-- Danger Zone (OWNER only) -->
             <div v-if="authStore.isOwner" class="danger-zone">
               <p class="danger-zone-label">Danger Zone</p>
-              <button @click="showDeleteModal = true" class="delete-business-btn">
+              <button @click="openDeleteModal" class="delete-business-btn">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
@@ -115,234 +97,408 @@
 
         <!-- Main Content -->
         <div class="content-area">
-          <!-- Team Members Card -->
-          <div class="card members-card">
-            <div class="card-header">
-              <h2 class="card-title">Team Members</h2>
-              <span class="member-count">{{ business.members?.length || 0 }} members</span>
-            </div>
-            <div class="card-body">
-              <!-- Desktop Table View -->
-              <div class="hidden lg:block">
-                <table class="members-table">
-                  <thead>
-                    <tr>
-                      <th class="th-member">Member</th>
-                      <th class="th-email">Email</th>
-                      <th class="th-role">Role</th>
-                      <th class="th-joined">Joined</th>
-                      <th class="th-actions">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="member in business.members" :key="member.id" class="member-row">
-                      <td class="td-member">
-                        <div class="flex items-center gap-3">
-                          <div class="member-avatar">
-                            {{ member.user?.name?.charAt(0).toUpperCase() }}
-                          </div>
-                          <span class="member-name">{{ member.user?.name }}</span>
-                        </div>
-                      </td>
-                      <td class="td-email">{{ member.user?.email }}</td>
-                      <td class="td-role">
-                        <span class="role-badge small" :class="getRoleClass(member.role)">{{ member.role }}</span>
-                      </td>
-                      <td class="td-joined">{{ formatDate(member.createdAt) }}</td>
-                      <td class="td-actions">
-                        <div class="flex items-center gap-2 justify-end">
-                          <template v-if="authStore.canChangeRoles && member.role !== 'OWNER' && member.userId !== authStore.user?.id">
-                            <select
-                              v-model="member.role"
-                              @change="handleRoleChange(member.id, $event)"
-                              class="role-select"
-                            >
-                              <option value="BOSS">Boss</option>
-                              <option value="EMPLOYEE">Employee</option>
-                            </select>
-                            <button @click="handleRemoveMember(member.id)" class="action-btn action-btn-danger" title="Remove member">
-                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </template>
-                          <template v-else-if="authStore.canManageMembers && member.role === 'EMPLOYEE' && member.userId !== authStore.user?.id">
-                            <button @click="handleRemoveMember(member.id)" class="action-btn action-btn-danger" title="Remove member">
-                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </template>
-                          <span v-else class="text-sm text-surface-400">-</span>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+          <!-- Members Section -->
+          <section class="content-section">
+            <div class="card members-card">
+              <div class="card-header">
+                <h2 class="card-title">Team Members</h2>
+                <span class="member-count">{{ business.members?.length || 0 }} members</span>
               </div>
+              <div class="card-body">
+                <!-- Desktop Table View -->
+                <div class="hidden lg:block">
+                  <table class="members-table">
+                    <thead>
+                      <tr>
+                        <th class="th-member">Member</th>
+                        <th class="th-email">Email</th>
+                        <th class="th-role">Role</th>
+                        <th class="th-joined">Joined</th>
+                        <th class="th-actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="member in business.members" :key="member.id" class="member-row">
+                        <td class="td-member">
+                          <div class="flex items-center gap-3">
+                            <div class="member-avatar">
+                              {{ member.user?.name?.charAt(0)?.toUpperCase() || '' }}
+                            </div>
+                            <span class="member-name">{{ member.user?.name }}</span>
+                          </div>
+                        </td>
+                        <td class="td-email">{{ member.user?.email }}</td>
+                        <td class="td-role">
+                          <span class="role-badge small" :class="getRoleClass(member.role)">{{ member.role }}</span>
+                        </td>
+                        <td class="td-joined">{{ formatDate(member.createdAt) }}</td>
+                        <td class="td-actions">
+                          <div class="flex items-center gap-2 justify-end">
+                            <template v-if="authStore.canChangeRoles && member.role !== 'OWNER' && member.userId !== authStore.user?.id">
+                              <button @click="openRoleModal(member)" class="action-btn action-btn-change-role" aria-label="Change member role" title="Change role">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button @click="handleRemoveMember(member.id)" class="action-btn action-btn-danger" aria-label="Remove member" title="Remove member">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </template>
+                            <template v-else-if="authStore.canManageMembers && member.role === 'EMPLOYEE' && member.userId !== authStore.user?.id">
+                              <button @click="handleRemoveMember(member.id)" class="action-btn action-btn-danger" aria-label="Remove member" title="Remove member">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </template>
+                            <span v-else class="text-sm text-surface-400">-</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-              <!-- Mobile Card View -->
-              <ul class="members-list lg:hidden">
-                <li v-for="member in business.members" :key="member.id" class="member-item">
-                  <div class="member-info">
-                    <div class="member-avatar">
-                      {{ member.user?.name?.charAt(0).toUpperCase() }}
+                <!-- Mobile Card View -->
+                <ul class="members-list lg:hidden">
+                  <li v-for="member in business.members" :key="member.id" class="member-card-mobile">
+                    <div class="member-card-header">
+                      <div class="member-avatar">
+                        {{ member.user?.name?.charAt(0)?.toUpperCase() || '' }}
+                      </div>
+                      <div class="member-card-info">
+                        <span class="member-name">{{ member.user?.name }}</span>
+                        <span class="member-email">{{ member.user?.email }}</span>
+                      </div>
                     </div>
-                    <div class="member-details">
-                      <span class="member-name">{{ member.user?.name }}</span>
-                      <span class="member-email">{{ member.user?.email }}</span>
+                    <div class="member-card-meta">
+                      <span class="role-badge small" :class="getRoleClass(member.role)">{{ member.role }}</span>
+                      <span class="member-joined">Joined {{ formatDate(member.createdAt) }}</span>
                     </div>
-                  </div>
-                  <div class="member-actions">
-                    <span class="role-badge small" :class="getRoleClass(member.role)">{{ member.role }}</span>
-                    <template v-if="authStore.canChangeRoles && member.role !== 'OWNER' && member.userId !== authStore.user?.id">
-                      <select
-                        v-model="member.role"
-                        @change="handleRoleChange(member.id, $event)"
-                        class="role-select flex-1 md:flex-initial min-h-[44px]"
+                    <div class="member-card-actions" v-if="(authStore.canChangeRoles && member.role !== 'OWNER' && member.userId !== authStore.user?.id) || (authStore.canManageMembers && member.role === 'EMPLOYEE' && member.userId !== authStore.user?.id)">
+                      <button
+                        v-if="authStore.canChangeRoles && member.role !== 'OWNER'"
+                        @click="openRoleModal(member)"
+                        class="member-action-btn"
                       >
-                        <option value="BOSS">Boss</option>
-                        <option value="EMPLOYEE">Employee</option>
-                      </select>
-                      <button @click="handleRemoveMember(member.id)" class="remove-btn min-w-[44px] min-h-[44px]" title="Remove member">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Change Role
+                      </button>
+                      <button
+                        @click="handleRemoveMember(member.id)"
+                        class="member-action-btn member-action-btn-danger"
+                      >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
+                        Remove
                       </button>
-                    </template>
-                    <template v-else-if="authStore.canManageMembers && member.role === 'EMPLOYEE' && member.userId !== authStore.user?.id">
-                      <button @click="handleRemoveMember(member.id)" class="remove-btn min-w-[44px] min-h-[44px]" title="Remove member">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </template>
-                  </div>
-                </li>
-              </ul>
+                    </div>
+                  </li>
+                </ul>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <!-- Invite Codes Card (only for OWNER and BOSS) -->
-          <div v-if="authStore.canManageMembers" class="card invite-card">
-            <div class="card-header">
-              <h2 class="card-title">Invite Codes</h2>
-              <button @click="showInviteModal = true" class="create-invite-btn min-h-[44px] lg:hidden">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                New Code
-              </button>
-            </div>
-            <div class="card-body">
-              <div v-if="!business.inviteCodes?.length" class="empty-state">
-                <svg class="w-12 h-12 mx-auto mb-3" style="color: rgb(var(--color-surface-300));" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                </svg>
-                <p>No active invite codes</p>
-                <button @click="showInviteModal = true" class="btn btn-primary mt-4">
-                  Create Your First Invite
+          <!-- Invites Section -->
+          <section v-if="authStore.canManageMembers" class="content-section">
+            <div class="card invite-card">
+              <div class="card-header">
+                <h2 class="card-title">Invite Codes</h2>
+                <button @click="showInviteModal = true" class="create-invite-btn-header">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  New Code
                 </button>
               </div>
+              <div class="card-body">
+                <div v-if="!business.inviteCodes?.length" class="empty-state">
+                  <svg class="w-16 h-16 mx-auto mb-4" style="color: rgb(var(--color-surface-300));" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                  </svg>
+                  <p class="empty-state-text">No active invite codes</p>
+                  <p class="empty-state-subtext">Create an invite code to add members to your team</p>
+                  <button @click="showInviteModal = true" class="btn btn-primary mt-4">
+                    Create Your First Invite
+                  </button>
+                </div>
 
-              <!-- Desktop Grid / Mobile List -->
-              <div v-else class="invite-grid">
-                <div v-for="invite in business.inviteCodes" :key="invite.id" class="invite-card-item">
-                  <div class="invite-card-header">
-                    <code class="invite-code">{{ invite.code }}</code>
-                    <div class="invite-actions-inline">
-                      <button @click="copyInviteCode(invite.code)" class="action-btn" title="Copy code">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                      <button @click="handleDeleteInvite(invite.id)" class="action-btn action-btn-danger" title="Delete code">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                <!-- Invite Cards Grid -->
+                <div v-else class="invite-grid">
+                  <div v-for="invite in business.inviteCodes" :key="invite.id" class="invite-card-item">
+                    <div class="invite-card-top">
+                      <span class="role-badge small" :class="getRoleClass(invite.role)">{{ invite.role }}</span>
+                      <div class="invite-card-actions">
+                        <button @click="copyInviteCode(invite.code)" class="invite-action-btn" :aria-label="copiedCode === invite.code ? 'Copied!' : 'Copy invite code'" :title="copiedCode === invite.code ? 'Copied!' : 'Copy code'">
+                          <svg v-if="copiedCode !== invite.code" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <svg v-else class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button @click="copyInviteLink(invite.code)" class="invite-action-btn" :aria-label="copiedLink === invite.code ? 'Copied!' : 'Share invite link'" :title="copiedLink === invite.code ? 'Copied!' : 'Copy invite link'">
+                          <svg v-if="copiedLink !== invite.code" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                          </svg>
+                          <svg v-else class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button @click="handleDeleteInvite(invite.id)" class="invite-action-btn invite-action-btn-danger" aria-label="Delete invite code" title="Delete code">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div class="invite-meta-row">
-                    <span class="role-badge small" :class="getRoleClass(invite.role)">{{ invite.role }}</span>
-                    <span v-if="invite.expiresAt" class="invite-expires">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <code class="invite-code-display">{{ invite.code }}</code>
+
+                    <div class="invite-meta">
+                      <div v-if="invite.expiresAt" class="invite-meta-item">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Expires {{ formatDate(invite.expiresAt) }}</span>
+                      </div>
+                      <div v-else class="invite-meta-item">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>No expiry</span>
+                      </div>
+                    </div>
+
+                    <!-- Usage Progress -->
+                    <div v-if="invite.maxUses" class="invite-usage">
+                      <div class="invite-usage-header">
+                        <span>{{ invite.usedCount }} / {{ invite.maxUses }} uses</span>
+                        <span class="invite-usage-percent">{{ Math.round((invite.usedCount / invite.maxUses) * 100) }}%</span>
+                      </div>
+                      <div class="progress-bar">
+                        <div
+                          class="progress-bar-fill"
+                          :style="{ width: `${(invite.usedCount / invite.maxUses) * 100}%` }"
+                        ></div>
+                      </div>
+                    </div>
+                    <div v-else class="invite-usage-unlimited">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      {{ formatDate(invite.expiresAt) }}
-                    </span>
-                  </div>
-
-                  <!-- Usage Progress -->
-                  <div v-if="invite.maxUses" class="invite-usage">
-                    <div class="invite-usage-text">
-                      <span>{{ invite.usedCount }} / {{ invite.maxUses }} uses</span>
-                      <span class="text-xs">{{ Math.round((invite.usedCount / invite.maxUses) * 100) }}%</span>
+                      <span>Unlimited uses</span>
                     </div>
-                    <div class="progress-bar">
-                      <div
-                        class="progress-bar-fill"
-                        :style="{ width: `${(invite.usedCount / invite.maxUses) * 100}%` }"
-                      ></div>
-                    </div>
-                  </div>
-                  <div v-else class="invite-usage">
-                    <span class="text-xs" style="color: rgb(var(--color-surface-500));">Unlimited uses</span>
                   </div>
                 </div>
               </div>
             </div>
+          </section>
+
+          <!-- Danger Zone (Mobile Only - OWNER) -->
+          <div v-if="authStore.isOwner" class="mobile-danger-zone lg:hidden">
+            <p class="danger-zone-label">Danger Zone</p>
+            <button @click="openDeleteModal" class="delete-business-btn">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete Business
+            </button>
           </div>
         </div>
       </div>
     </template>
 
-    <!-- Create Invite Modal -->
+    <!-- Toast Notification -->
+    <Transition name="toast">
+      <div v-if="toastMessage" class="toast-notification" :class="toastType">
+        <svg v-if="toastType === 'success'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>{{ toastMessage }}</span>
+      </div>
+    </Transition>
+
+    <!-- Create Invite Modal (Redesigned) -->
     <UiModal
       v-model="showInviteModal"
       title="Create Invite Code"
       variant="default"
       size="md"
     >
-      <div class="space-y-4">
-        <UiFormGroup label="Role" for="invite-role">
-          <UiSelect
-            id="invite-role"
-            v-model="inviteForm.role"
-            :options="roleSelectOptions"
-            select-class="form-select"
-          />
-        </UiFormGroup>
-        <UiFormGroup label="Expires After (hours)" for="invite-expires">
-          <UiNumberInput
-            id="invite-expires"
-            v-model="inviteForm.expiresInHours"
-            :min="0"
-            placeholder="Leave empty for no expiry"
-          />
-          <p class="text-xs text-surface-500 mt-1">Leave at 0 for no expiration</p>
-        </UiFormGroup>
-        <UiFormGroup label="Max Uses" for="invite-max-uses">
-          <UiNumberInput
-            id="invite-max-uses"
-            v-model="inviteForm.maxUses"
-            :min="0"
-            placeholder="Leave empty for unlimited"
-          />
-          <p class="text-xs text-surface-500 mt-1">Leave at 0 for unlimited uses</p>
-        </UiFormGroup>
+      <div class="space-y-6">
+        <!-- Role Selection Cards -->
+        <div>
+          <label class="form-label-text mb-3 block">Select Role</label>
+          <div class="role-cards">
+            <button
+              :class="['role-card', { selected: inviteForm.role === 'EMPLOYEE' }]"
+              @click="inviteForm.role = 'EMPLOYEE'"
+            >
+              <div class="role-card-icon">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div class="role-card-title">Employee</div>
+              <div class="role-card-desc">Can view and edit inventory</div>
+            </button>
+            <button
+              v-if="authStore.isOwner"
+              :class="['role-card', { selected: inviteForm.role === 'BOSS' }]"
+              @click="inviteForm.role = 'BOSS'"
+            >
+              <div class="role-card-icon">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div class="role-card-title">Boss</div>
+              <div class="role-card-desc">Full access to manage team</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Optional Settings -->
+        <div class="optional-settings">
+          <div class="optional-settings-header">
+            <span class="optional-settings-title">Optional Settings</span>
+          </div>
+
+          <div class="optional-settings-content">
+            <!-- Expiry Toggle -->
+            <div class="setting-item">
+              <UiToggle
+                v-model="inviteHasExpiry"
+                label="Set expiration"
+                description="Code will expire after specified hours"
+                label-position="right"
+              />
+              <div v-if="inviteHasExpiry" class="setting-input-wrapper">
+                <UiFormGroup label="Expires after (hours)" for="invite-expires">
+                  <UiNumberInput
+                    id="invite-expires"
+                    v-model="inviteForm.expiresInHours"
+                    :min="1"
+                    placeholder="24"
+                  />
+                </UiFormGroup>
+              </div>
+            </div>
+
+            <!-- Max Uses Toggle -->
+            <div class="setting-item">
+              <UiToggle
+                v-model="inviteHasMaxUses"
+                label="Limit uses"
+                description="Set maximum number of times this code can be used"
+                label-position="right"
+              />
+              <div v-if="inviteHasMaxUses" class="setting-input-wrapper">
+                <UiFormGroup label="Maximum uses" for="invite-max-uses">
+                  <UiNumberInput
+                    id="invite-max-uses"
+                    v-model="inviteForm.maxUses"
+                    :min="1"
+                    placeholder="10"
+                  />
+                </UiFormGroup>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <template #footer>
         <UiButton variant="secondary" @click="showInviteModal = false">Cancel</UiButton>
         <UiButton :loading="isLoading" loading-text="Creating..." @click="handleCreateInvite">
-          Create
+          Create Invite
         </UiButton>
       </template>
     </UiModal>
 
-    <!-- Delete Business Confirmation Modal -->
+    <!-- Change Role Modal -->
+    <UiModal
+      v-model="showRoleModal"
+      title="Change Member Role"
+      variant="default"
+      size="md"
+    >
+      <div v-if="selectedMemberForRole" class="space-y-6">
+        <!-- Member Info -->
+        <div class="role-modal-member">
+          <div class="member-avatar-large">
+            {{ selectedMemberForRole.user?.name?.charAt(0)?.toUpperCase() || '' }}
+          </div>
+          <div class="role-modal-member-info">
+            <span class="role-modal-member-name">{{ selectedMemberForRole.user?.name }}</span>
+            <span class="role-modal-member-email">{{ selectedMemberForRole.user?.email }}</span>
+          </div>
+        </div>
+
+        <!-- Role Selection -->
+        <div class="role-selection">
+          <label class="role-option" :class="{ selected: newRole === 'BOSS' }">
+            <input
+              type="radio"
+              v-model="newRole"
+              value="BOSS"
+              name="member-role"
+              class="radio"
+            />
+            <div class="role-option-content">
+              <div class="role-option-header">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span class="role-option-title">Boss</span>
+              </div>
+              <p class="role-option-desc">Full access to manage team and inventory, create invites</p>
+            </div>
+          </label>
+          <label class="role-option" :class="{ selected: newRole === 'EMPLOYEE' }">
+            <input
+              type="radio"
+              v-model="newRole"
+              value="EMPLOYEE"
+              name="member-role"
+              class="radio"
+            />
+            <div class="role-option-content">
+              <div class="role-option-header">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span class="role-option-title">Employee</span>
+              </div>
+              <p class="role-option-desc">Can view and edit inventory items</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <template #footer>
+        <UiButton variant="secondary" @click="showRoleModal = false">Cancel</UiButton>
+        <UiButton
+          :loading="isChangingRole"
+          loading-text="Saving..."
+          :disabled="newRole === selectedMemberForRole?.role"
+          @click="confirmRoleChange"
+        >
+          Save Changes
+        </UiButton>
+      </template>
+    </UiModal>
+
+    <!-- Delete Business Confirmation Modal (Two-Step) -->
     <UiModal
       v-model="showDeleteModal"
       title="Delete Business"
@@ -350,9 +506,15 @@
       size="lg"
       :close-on-backdrop="!isDeletingBusiness"
     >
-      <div class="space-y-4">
-        <!-- Business Name -->
-        <p class="delete-modal-text">
+      <!-- Step 1: Warning -->
+      <div v-if="deleteStep === 1" class="space-y-4">
+        <div class="delete-warning-icon">
+          <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+
+        <p class="delete-modal-text text-center">
           You are about to delete <strong>{{ business?.name }}</strong>
         </p>
 
@@ -364,25 +526,25 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              All inventory items ({{ inventoryItemCount }} items)
+              <span><strong>{{ inventoryItemCount }}</strong> inventory items</span>
             </li>
             <li>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              All team members ({{ business?.members?.length || 0 }} members)
+              <span><strong>{{ business?.members?.length || 0 }}</strong> team members</span>
             </li>
             <li>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
               </svg>
-              All invite codes
+              <span><strong>{{ business?.inviteCodes?.length || 0 }}</strong> invite codes</span>
             </li>
             <li>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
               </svg>
-              Column schema configuration
+              <span>Column schema configuration</span>
             </li>
           </ul>
         </div>
@@ -394,17 +556,26 @@
           </svg>
           <span>This action cannot be undone.</span>
         </div>
+      </div>
 
-        <!-- Confirmation Input -->
+      <!-- Step 2: Type to Confirm -->
+      <div v-else class="space-y-4">
+        <div class="delete-confirm-header">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: rgb(var(--color-error-500));">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p class="delete-confirm-text">Final Confirmation</p>
+        </div>
+
         <UiFormGroup for="delete-confirmation">
           <template #label>
             <UiFormLabel for="delete-confirmation">
-              Type <strong>{{ business?.name }}</strong> to confirm
+              Type <strong class="delete-confirm-name">{{ business?.name }}</strong> to confirm
             </UiFormLabel>
           </template>
           <UiInput
             id="delete-confirmation"
-            v-model="deleteConfirmation"
+            v-model="deleteConfirmName"
             type="text"
             :placeholder="business?.name"
             autocomplete="off"
@@ -413,12 +584,22 @@
       </div>
 
       <template #footer>
-        <UiButton variant="secondary" @click="closeDeleteModal">Cancel</UiButton>
+        <UiButton variant="secondary" @click="closeDeleteModal">
+          {{ deleteStep === 1 ? 'Cancel' : 'Go Back' }}
+        </UiButton>
         <UiButton
+          v-if="deleteStep === 1"
+          variant="danger"
+          @click="deleteStep = 2"
+        >
+          Continue
+        </UiButton>
+        <UiButton
+          v-else
           variant="danger"
           :loading="isDeletingBusiness"
           loading-text="Deleting..."
-          :disabled="!canConfirmDelete"
+          :disabled="!canDelete"
           @click="handleDeleteBusiness"
         >
           Delete Business
@@ -429,7 +610,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Business, BusinessRole } from '~/types/schema'
+import type { Business, BusinessRole, BusinessMember } from '~/types/schema'
 
 definePageMeta({
   middleware: 'auth',
@@ -448,39 +629,45 @@ const {
   isLoading,
 } = useBusiness()
 
+// Page state
 const business = ref<Business | null>(null)
 const isLoadingBusiness = ref(true)
+
+// Invite modal state
 const showInviteModal = ref(false)
+const inviteHasExpiry = ref(false)
+const inviteHasMaxUses = ref(false)
 const inviteForm = reactive({
   role: 'EMPLOYEE' as 'BOSS' | 'EMPLOYEE',
   expiresInHours: undefined as number | undefined,
   maxUses: undefined as number | undefined,
 })
 
-// Delete business modal state
+// Role change modal state
+const showRoleModal = ref(false)
+const selectedMemberForRole = ref<BusinessMember | null>(null)
+const newRole = ref<'BOSS' | 'EMPLOYEE'>('EMPLOYEE')
+const isChangingRole = ref(false)
+
+// Delete business modal state (two-step)
 const showDeleteModal = ref(false)
-const deleteConfirmation = ref('')
+const deleteStep = ref<1 | 2>(1)
+const deleteConfirmName = ref('')
 const isDeletingBusiness = ref(false)
 const inventoryItemCount = ref(0)
 
-// Computed: can confirm delete (business name matches)
-const canConfirmDelete = computed(() => {
-  if (!business.value?.name) return false
-  return deleteConfirmation.value === business.value.name
-})
+// Toast notification state
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error'>('success')
+let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
+// Copy state for invite codes
+const copiedCode = ref<string | null>(null)
+const copiedLink = ref<string | null>(null)
+
+// Computed properties
+const canDelete = computed(() => deleteConfirmName.value === business.value?.name)
 const roleClass = computed(() => getRoleClass(authStore.businessRole))
-
-// Options for the invite role select
-const roleSelectOptions = computed(() => {
-  const options = [
-    { value: 'EMPLOYEE', label: 'Employee' },
-  ]
-  if (authStore.isOwner) {
-    options.push({ value: 'BOSS', label: 'Boss' })
-  }
-  return options
-})
 
 const roleIconClass = computed(() => {
   switch (authStore.businessRole) {
@@ -500,6 +687,7 @@ const memberSinceFormatted = computed(() => {
   return formatDateShort(member.createdAt)
 })
 
+// Helper functions
 function getRoleClass(role: BusinessRole | null) {
   switch (role) {
     case 'OWNER':
@@ -522,10 +710,23 @@ function formatDateShort(dateString: string) {
   return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 }
 
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  toastMessage.value = message
+  toastType.value = type
+  if (toastTimeout) clearTimeout(toastTimeout)
+  toastTimeout = setTimeout(() => {
+    toastMessage.value = ''
+  }, 3000)
+}
+
+// Data loading
 async function loadBusiness() {
   isLoadingBusiness.value = true
   try {
-    business.value = await getBusiness()
+    const result = await getBusiness()
+    if (result.success) {
+      business.value = result.business
+    }
   } catch {
     // Handle error
   } finally {
@@ -533,20 +734,36 @@ async function loadBusiness() {
   }
 }
 
+// Fetch inventory item count for the delete modal
+async function fetchInventoryCount() {
+  try {
+    const response = await authFetch<{ total: number }>('/api/inventory', {
+      query: { limit: 0 },
+    })
+    inventoryItemCount.value = response.total || 0
+  } catch {
+    inventoryItemCount.value = 0
+  }
+}
+
+// Invite handlers
 async function handleCreateInvite() {
   try {
     await createInviteCode({
       role: inviteForm.role,
-      expiresInHours: inviteForm.expiresInHours,
-      maxUses: inviteForm.maxUses,
+      expiresInHours: inviteHasExpiry.value ? inviteForm.expiresInHours : undefined,
+      maxUses: inviteHasMaxUses.value ? inviteForm.maxUses : undefined,
     })
     showInviteModal.value = false
     inviteForm.role = 'EMPLOYEE'
     inviteForm.expiresInHours = undefined
     inviteForm.maxUses = undefined
+    inviteHasExpiry.value = false
+    inviteHasMaxUses.value = false
     await loadBusiness()
+    showToast('Invite code created successfully')
   } catch {
-    // Error is handled in composable
+    showToast('Failed to create invite code', 'error')
   }
 }
 
@@ -555,75 +772,100 @@ async function handleDeleteInvite(id: string) {
   try {
     await deleteInviteCode(id)
     await loadBusiness()
+    showToast('Invite code deleted')
   } catch {
-    // Error is handled in composable
-  }
-}
-
-async function handleRoleChange(memberId: string, event: Event) {
-  const target = event.target as HTMLSelectElement
-  const newRole = target.value as 'BOSS' | 'EMPLOYEE'
-  try {
-    await updateMemberRole(memberId, newRole)
-    await loadBusiness()
-  } catch {
-    // Error is handled in composable, reload to reset select
-    await loadBusiness()
-  }
-}
-
-async function handleRemoveMember(memberId: string) {
-  if (!confirm('Are you sure you want to remove this member from the business?')) return
-  try {
-    await removeMember(memberId)
-    await loadBusiness()
-  } catch {
-    // Error is handled in composable
+    showToast('Failed to delete invite code', 'error')
   }
 }
 
 function copyInviteCode(code: string) {
   navigator.clipboard.writeText(code)
-  // Could add a toast notification here
+  copiedCode.value = code
+  showToast('Code copied to clipboard')
+  setTimeout(() => {
+    copiedCode.value = null
+  }, 2000)
 }
 
-// Delete business modal functions
+function copyInviteLink(code: string) {
+  const baseUrl = window.location.origin
+  const link = `${baseUrl}/business/join?code=${code}`
+  navigator.clipboard.writeText(link)
+  copiedLink.value = code
+  showToast('Invite link copied to clipboard')
+  setTimeout(() => {
+    copiedLink.value = null
+  }, 2000)
+}
+
+// Role change handlers
+function openRoleModal(member: BusinessMember) {
+  selectedMemberForRole.value = member
+  newRole.value = member.role as 'BOSS' | 'EMPLOYEE'
+  showRoleModal.value = true
+}
+
+async function confirmRoleChange() {
+  if (!selectedMemberForRole.value) return
+  isChangingRole.value = true
+  try {
+    await updateMemberRole(selectedMemberForRole.value.id, newRole.value)
+    await loadBusiness()
+    showRoleModal.value = false
+    showToast(`Role changed to ${newRole.value}`)
+  } catch {
+    showToast('Failed to change role', 'error')
+  } finally {
+    isChangingRole.value = false
+  }
+}
+
+// Member removal
+async function handleRemoveMember(memberId: string) {
+  if (!confirm('Are you sure you want to remove this member from the business?')) return
+  try {
+    await removeMember(memberId)
+    await loadBusiness()
+    showToast('Member removed successfully')
+  } catch {
+    showToast('Failed to remove member', 'error')
+  }
+}
+
+// Delete business handlers
+function openDeleteModal() {
+  deleteStep.value = 1
+  deleteConfirmName.value = ''
+  showDeleteModal.value = true
+}
+
 function closeDeleteModal() {
-  showDeleteModal.value = false
-  deleteConfirmation.value = ''
+  if (deleteStep.value === 2) {
+    deleteStep.value = 1
+  } else {
+    showDeleteModal.value = false
+    deleteConfirmName.value = ''
+  }
 }
 
 async function handleDeleteBusiness() {
-  if (!canConfirmDelete.value) return
+  if (!canDelete.value) return
 
   isDeletingBusiness.value = true
   try {
     await deleteBusiness()
     closeDeleteModal()
-    // Redirect to business selection page after deletion
     router.push('/business/select')
   } catch {
-    // Error is handled in composable
+    showToast('Failed to delete business', 'error')
   } finally {
     isDeletingBusiness.value = false
   }
 }
 
-// Fetch inventory item count for the delete modal
-async function fetchInventoryCount() {
-  try {
-    const response = await authFetch<{ total: number }>('/api/inventory', {
-      query: { limit: 0 }, // We just need the count
-    })
-    inventoryItemCount.value = response.total || 0
-  } catch {
-    inventoryItemCount.value = 0
-  }
-}
-
+// Lifecycle
 onMounted(async () => {
   await loadBusiness()
-  // Fetch inventory count in the background for the delete modal
   fetchInventoryCount()
 })
 </script>
@@ -633,8 +875,22 @@ onMounted(async () => {
   @apply max-w-7xl mx-auto py-6 px-4 lg:py-8 lg:px-8;
 }
 
+/* Page Header */
 .page-header {
   @apply mb-6 lg:mb-8;
+}
+
+.header-content {
+  @apply space-y-2;
+}
+
+.back-link {
+  @apply inline-flex items-center gap-2 text-sm font-medium mb-4 transition-colors;
+  color: rgb(var(--color-surface-500));
+}
+
+.back-link:hover {
+  color: rgb(var(--color-primary-600));
 }
 
 .page-title {
@@ -647,6 +903,7 @@ onMounted(async () => {
   color: rgb(var(--color-surface-500));
 }
 
+/* Loading State */
 .loading-container {
   @apply flex items-center gap-3 justify-center py-12;
   color: rgb(var(--color-surface-500));
@@ -658,13 +915,39 @@ onMounted(async () => {
   border-top-color: transparent;
 }
 
-/* Stats Row */
-.stats-row {
-  @apply grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6 lg:mb-8;
+/* Mobile Business Info */
+.mobile-business-info {
+  @apply mb-6 space-y-4;
 }
 
-.stat-value-badge {
-  @apply flex items-center h-8 lg:h-10;
+.mobile-business-card {
+  @apply flex items-center gap-4 p-4 rounded-xl;
+  background: rgba(var(--color-surface-100), 0.7);
+  border: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.business-avatar-small {
+  @apply w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold text-white flex-shrink-0;
+  background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-accent-500)));
+}
+
+.mobile-business-details {
+  @apply flex flex-col gap-2;
+}
+
+.mobile-business-name {
+  @apply text-lg font-bold;
+  color: rgb(var(--color-surface-900));
+}
+
+.mobile-quick-actions {
+  @apply flex;
+}
+
+.mobile-create-invite-btn {
+  @apply flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all min-h-[44px];
+  background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-primary-600)));
+  box-shadow: 0 4px 15px rgba(var(--color-primary-500), 0.3);
 }
 
 /* Main Layout */
@@ -674,7 +957,7 @@ onMounted(async () => {
 
 /* Sidebar */
 .sidebar {
-  @apply hidden lg:block lg:w-80 flex-shrink-0;
+  @apply hidden lg:block lg:w-72 flex-shrink-0;
 }
 
 .sidebar-card {
@@ -691,6 +974,25 @@ onMounted(async () => {
 .business-name {
   @apply text-xl font-bold mb-3;
   color: rgb(var(--color-surface-900));
+}
+
+.sidebar-stats {
+  @apply flex justify-center gap-8 mt-4 pt-4;
+  border-top: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.sidebar-stat {
+  @apply flex flex-col items-center;
+}
+
+.sidebar-stat-value {
+  @apply text-xl font-bold;
+  color: rgb(var(--color-surface-900));
+}
+
+.sidebar-stat-label {
+  @apply text-xs;
+  color: rgb(var(--color-surface-500));
 }
 
 .quick-actions {
@@ -711,7 +1013,12 @@ onMounted(async () => {
 
 /* Content Area */
 .content-area {
-  @apply flex-1 space-y-6;
+  @apply flex-1 space-y-8;
+}
+
+/* Content Sections */
+.content-section {
+  @apply space-y-4;
 }
 
 /* Card Styles */
@@ -816,12 +1123,12 @@ onMounted(async () => {
   @apply space-y-3;
 }
 
-.member-item {
-  @apply flex flex-col gap-3 p-3 rounded-lg md:flex-row md:items-center md:justify-between;
+.member-card-mobile {
+  @apply p-4 rounded-xl space-y-3;
   background: rgb(var(--color-surface-50));
 }
 
-.member-info {
+.member-card-header {
   @apply flex items-center gap-3;
 }
 
@@ -830,7 +1137,12 @@ onMounted(async () => {
   background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-accent-500)));
 }
 
-.member-details {
+.member-avatar-large {
+  @apply w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold text-white flex-shrink-0;
+  background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-accent-500)));
+}
+
+.member-card-info {
   @apply flex flex-col;
 }
 
@@ -844,20 +1156,42 @@ onMounted(async () => {
   color: rgb(var(--color-surface-500));
 }
 
-.member-actions {
-  @apply flex items-center gap-2 w-full md:w-auto;
+.member-card-meta {
+  @apply flex items-center gap-3;
 }
 
-.role-select {
-  @apply text-xs px-2 py-1 rounded border;
-  background: rgb(var(--color-surface-50));
-  border-color: rgb(var(--color-surface-300));
+.member-joined {
+  @apply text-xs;
+  color: rgb(var(--color-surface-500));
+}
+
+.member-card-actions {
+  @apply flex gap-2 pt-2;
+  border-top: 1px solid rgba(var(--color-surface-200), 0.5);
+}
+
+.member-action-btn {
+  @apply flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px];
+  background: rgba(var(--color-surface-200), 0.5);
   color: rgb(var(--color-surface-700));
+}
+
+.member-action-btn:hover {
+  background: rgba(var(--color-surface-200), 0.8);
+}
+
+.member-action-btn-danger {
+  background: rgba(var(--color-error-500), 0.1);
+  color: rgb(var(--color-error-600));
+}
+
+.member-action-btn-danger:hover {
+  background: rgba(var(--color-error-500), 0.15);
 }
 
 /* Action Buttons */
 .action-btn {
-  @apply p-2 rounded-lg transition-colors flex items-center justify-center;
+  @apply p-2 rounded-lg transition-colors flex items-center justify-center min-w-[44px] min-h-[44px];
   color: rgb(var(--color-surface-400));
 }
 
@@ -866,23 +1200,41 @@ onMounted(async () => {
   color: rgb(var(--color-primary-500));
 }
 
+.action-btn-change-role {
+  color: rgb(var(--color-surface-500));
+}
+
+.action-btn-change-role:hover {
+  background: rgba(var(--color-primary-500), 0.1);
+  color: rgb(var(--color-primary-600));
+}
+
 .action-btn-danger:hover {
   background: rgba(var(--color-error-500), 0.1);
   color: rgb(var(--color-error-600));
 }
 
 /* Invite Card Styles */
-.create-invite-btn {
-  @apply flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors;
+.create-invite-btn-header {
+  @apply flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors min-h-[44px];
   background: rgb(var(--color-primary-500));
 }
 
-.create-invite-btn:hover {
+.create-invite-btn-header:hover {
   background: rgb(var(--color-primary-600));
 }
 
 .empty-state {
-  @apply text-center py-8;
+  @apply text-center py-12;
+}
+
+.empty-state-text {
+  @apply text-lg font-semibold;
+  color: rgb(var(--color-surface-600));
+}
+
+.empty-state-subtext {
+  @apply text-sm mt-1;
   color: rgb(var(--color-surface-400));
 }
 
@@ -892,103 +1244,76 @@ onMounted(async () => {
 }
 
 .invite-card-item {
-  @apply p-4 rounded-xl;
+  @apply p-4 rounded-xl space-y-3;
   background: rgb(var(--color-surface-50));
   border: 1px solid rgba(var(--color-surface-200), 0.8);
 }
 
-.invite-card-header {
-  @apply flex items-center justify-between mb-3;
+.invite-card-top {
+  @apply flex items-center justify-between;
 }
 
-.invite-code {
-  @apply text-lg font-mono font-bold tracking-widest;
-  color: rgb(var(--color-primary-600));
-}
-
-.invite-actions-inline {
+.invite-card-actions {
   @apply flex items-center gap-1;
 }
 
-.invite-meta-row {
-  @apply flex items-center gap-2 text-xs mb-3;
-  color: rgb(var(--color-surface-500));
-}
-
-.invite-expires {
-  @apply flex items-center gap-1;
-}
-
-.invite-usage {
-  @apply space-y-1.5;
-}
-
-.invite-usage-text {
-  @apply flex items-center justify-between text-xs;
-  color: rgb(var(--color-surface-600));
-}
-
-/* Legacy mobile invite styles */
-.copy-btn, .remove-btn {
-  @apply p-2 rounded-lg transition-colors flex items-center justify-center;
+.invite-action-btn {
+  @apply p-2 rounded-lg transition-colors flex items-center justify-center min-w-[40px] min-h-[40px];
   color: rgb(var(--color-surface-400));
 }
 
-.copy-btn:hover {
-  background: rgb(var(--color-surface-200));
-  color: rgb(var(--color-primary-500));
+.invite-action-btn:hover {
+  background: rgba(var(--color-surface-200), 0.5);
+  color: rgb(var(--color-surface-600));
 }
 
-.remove-btn:hover {
+.invite-action-btn-danger:hover {
   background: rgba(var(--color-error-500), 0.1);
   color: rgb(var(--color-error-600));
 }
 
-/* Form */
-.form-group {
-  @apply space-y-1;
+.invite-code-display {
+  @apply block text-xl font-mono font-bold tracking-widest px-4 py-3 rounded-lg text-center;
+  background: rgba(var(--color-primary-500), 0.05);
+  color: rgb(var(--color-primary-600));
+  border: 1px dashed rgba(var(--color-primary-500), 0.3);
 }
 
-.form-label {
-  @apply block text-sm font-medium;
-  color: rgb(var(--color-surface-700));
+.invite-meta {
+  @apply flex flex-wrap gap-3 text-xs;
+  color: rgb(var(--color-surface-500));
 }
 
-.form-input, .form-select {
-  @apply w-full px-3 py-2 rounded-lg text-sm min-h-[44px];
-  background: rgb(var(--color-surface-50));
-  border: 1px solid rgb(var(--color-surface-300));
-  color: rgb(var(--color-surface-900));
+.invite-meta-item {
+  @apply flex items-center gap-1;
 }
 
-.form-input:focus, .form-select:focus {
-  outline: none;
-  border-color: rgb(var(--color-primary-500));
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-500), 0.1);
+.invite-usage {
+  @apply space-y-2 pt-2;
+  border-top: 1px solid rgba(var(--color-surface-200), 0.5);
 }
 
-/* Buttons */
-.btn-primary {
-  @apply px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors;
-  background: rgb(var(--color-primary-500));
+.invite-usage-header {
+  @apply flex items-center justify-between text-xs;
+  color: rgb(var(--color-surface-600));
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: rgb(var(--color-primary-600));
+.invite-usage-percent {
+  @apply font-semibold;
+  color: rgb(var(--color-primary-600));
 }
 
-.btn-primary:disabled {
-  @apply opacity-50 cursor-not-allowed;
+.invite-usage-unlimited {
+  @apply flex items-center gap-2 text-xs pt-2;
+  color: rgb(var(--color-surface-500));
+  border-top: 1px solid rgba(var(--color-surface-200), 0.5);
 }
 
-.btn-secondary {
-  @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors;
-  background: rgb(var(--color-surface-200));
-  color: rgb(var(--color-surface-700));
-}
-
-.btn-secondary:hover {
-  background: rgb(var(--color-surface-300));
+/* Mobile Danger Zone */
+.mobile-danger-zone {
+  @apply mt-6 p-4 rounded-xl;
+  background: rgba(var(--color-error-500), 0.05);
+  border: 1px solid rgba(var(--color-error-500), 0.15);
 }
 
 /* Danger Zone Section */
@@ -1015,7 +1340,139 @@ onMounted(async () => {
   border-color: rgba(var(--color-error-500), 0.3);
 }
 
-/* Delete Modal Content */
+/* Create Invite Modal - Role Cards */
+.role-cards {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.role-card {
+  @apply p-4 rounded-xl border-2 text-left transition-all;
+  border-color: rgb(var(--color-surface-200));
+  background: rgb(var(--color-surface-50));
+}
+
+.role-card:hover {
+  border-color: rgb(var(--color-surface-300));
+}
+
+.role-card.selected {
+  border-color: rgb(var(--color-primary-500));
+  background: rgba(var(--color-primary-500), 0.05);
+}
+
+.role-card-icon {
+  @apply w-10 h-10 rounded-lg flex items-center justify-center mb-3;
+  background: rgba(var(--color-surface-200), 0.5);
+  color: rgb(var(--color-surface-500));
+}
+
+.role-card.selected .role-card-icon {
+  background: rgba(var(--color-primary-500), 0.1);
+  color: rgb(var(--color-primary-600));
+}
+
+.role-card-title {
+  @apply font-semibold text-base mb-1;
+  color: rgb(var(--color-surface-900));
+}
+
+.role-card-desc {
+  @apply text-xs;
+  color: rgb(var(--color-surface-500));
+}
+
+/* Optional Settings */
+.optional-settings {
+  @apply rounded-xl overflow-hidden;
+  border: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.optional-settings-header {
+  @apply px-4 py-3;
+  background: rgba(var(--color-surface-100), 0.5);
+  border-bottom: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.optional-settings-title {
+  @apply text-sm font-semibold;
+  color: rgb(var(--color-surface-700));
+}
+
+.optional-settings-content {
+  @apply p-4 space-y-4;
+}
+
+.setting-item {
+  @apply space-y-3;
+}
+
+.setting-input-wrapper {
+  @apply pl-14;
+}
+
+/* Role Change Modal */
+.role-modal-member {
+  @apply flex items-center gap-4 p-4 rounded-xl;
+  background: rgba(var(--color-surface-100), 0.5);
+}
+
+.role-modal-member-info {
+  @apply flex flex-col;
+}
+
+.role-modal-member-name {
+  @apply font-semibold;
+  color: rgb(var(--color-surface-900));
+}
+
+.role-modal-member-email {
+  @apply text-sm;
+  color: rgb(var(--color-surface-500));
+}
+
+.role-selection {
+  @apply space-y-3;
+}
+
+.role-option {
+  @apply flex items-start gap-3 p-4 rounded-xl cursor-pointer transition-all;
+  border: 2px solid rgba(var(--color-surface-200), 0.8);
+  background: rgb(var(--color-surface-50));
+}
+
+.role-option:hover {
+  border-color: rgb(var(--color-surface-300));
+}
+
+.role-option.selected {
+  border-color: rgb(var(--color-primary-500));
+  background: rgba(var(--color-primary-500), 0.03);
+}
+
+.role-option-content {
+  @apply flex-1;
+}
+
+.role-option-header {
+  @apply flex items-center gap-2 mb-1;
+}
+
+.role-option-title {
+  @apply font-semibold;
+  color: rgb(var(--color-surface-900));
+}
+
+.role-option-desc {
+  @apply text-sm;
+  color: rgb(var(--color-surface-500));
+}
+
+/* Delete Modal */
+.delete-warning-icon {
+  @apply flex justify-center;
+  color: rgb(var(--color-error-500));
+}
+
 .delete-modal-text {
   @apply text-sm;
   color: rgb(var(--color-surface-700));
@@ -1058,17 +1515,62 @@ onMounted(async () => {
   color: rgb(var(--color-error-600));
 }
 
-/* Delete Button */
-.btn-delete {
-  @apply px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors flex items-center justify-center gap-2;
-  background: rgb(var(--color-error-600));
+.delete-confirm-header {
+  @apply flex flex-col items-center gap-2 text-center;
 }
 
-.btn-delete:hover:not(:disabled) {
-  background: rgb(var(--color-error-700));
+.delete-confirm-text {
+  @apply text-lg font-semibold;
+  color: rgb(var(--color-surface-900));
 }
 
-.btn-delete:disabled {
+.delete-confirm-name {
+  color: rgb(var(--color-error-600));
+}
+
+/* Toast Notification */
+.toast-notification {
+  @apply fixed bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium z-50;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.toast-notification.success {
+  background: rgb(var(--color-success-500));
+  color: white;
+}
+
+.toast-notification.error {
+  background: rgb(var(--color-error-500));
+  color: white;
+}
+
+.text-success {
+  color: rgb(var(--color-success-500));
+}
+
+/* Toast Animation */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
+
+/* Buttons */
+.btn-primary {
+  @apply px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors;
+  background: rgb(var(--color-primary-500));
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: rgb(var(--color-primary-600));
+}
+
+.btn-primary:disabled {
   @apply opacity-50 cursor-not-allowed;
 }
 </style>

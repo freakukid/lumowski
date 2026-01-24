@@ -46,6 +46,8 @@
     <div
       v-else
       class="columns-list"
+      @drop="onDrop"
+      @dragover.prevent
     >
       <!-- Drop indicator at top -->
       <div
@@ -61,7 +63,6 @@
           :data-id="column.id"
           @dragover.prevent="onDragOver($event, index)"
           @dragleave="onDragLeave"
-          @drop="onDrop"
         >
           <!-- Mobile card header with column number and actions -->
           <div class="mobile-card-header">
@@ -133,21 +134,8 @@
             </UiFormGroup>
           </div>
 
-          <!-- Type and Role container (side by side on mobile) -->
+          <!-- Role and Type container (side by side on mobile) -->
           <div class="type-role-container">
-            <!-- Column type -->
-            <div class="column-field type-field">
-              <UiFormGroup label="Type" :for="`type-${column.id}`">
-                <UiSelect
-                  :id="`type-${column.id}`"
-                  v-model="column.type"
-                  :options="typeOptions"
-                  :disabled="!!column.role"
-                  @change="onTypeChange(column)"
-                />
-              </UiFormGroup>
-            </div>
-
             <!-- Role -->
             <div class="column-field role-field">
               <UiFormGroup label="Role" :for="`role-${column.id}`">
@@ -157,6 +145,19 @@
                   :options="getRoleOptions(column.id)"
                   placeholder="None"
                   @update:model-value="onRoleChange(column, $event)"
+                />
+              </UiFormGroup>
+            </div>
+
+            <!-- Column type -->
+            <div class="column-field type-field">
+              <UiFormGroup label="Type" :for="`type-${column.id}`">
+                <UiSelect
+                  :id="`type-${column.id}`"
+                  v-model="column.type"
+                  :options="typeOptions"
+                  :disabled="!!column.role"
+                  @change="onTypeChange(column)"
                 />
               </UiFormGroup>
             </div>
@@ -334,7 +335,11 @@ const onDragLeave = () => {
 
 const onDrop = (e: DragEvent) => {
   e.preventDefault()
-  if (draggedIndex.value === null || dropTargetIndex.value === null) return
+
+  if (draggedIndex.value === null || dropTargetIndex.value === null) {
+    onDragEnd()
+    return
+  }
 
   const fromIndex = draggedIndex.value
   let toIndex = dropTargetIndex.value
@@ -676,23 +681,29 @@ const saveSchema = () => {
 }
 
 /* Field input styles - applied via inputClass/selectClass props */
+/* Aligned with UiSelect trigger styling for visual consistency */
 .column-field :deep(.field-input) {
-  @apply w-full px-3 py-2 rounded-lg text-sm transition-all outline-none min-h-[44px];
-  background: rgb(var(--color-surface-50));
+  @apply w-full px-4 py-3 rounded-xl text-base md:text-sm font-medium transition-all outline-none min-h-[44px];
+  background: rgba(var(--color-surface-50), 0.8);
   border: 1px solid rgb(var(--color-surface-300));
   color: rgb(var(--color-surface-900));
-  box-shadow: inset 0 1px 2px rgba(var(--color-surface-900), 0.05);
+  box-shadow: inset 0 1px 2px rgba(var(--color-surface-900), 0.04);
+}
+
+.column-field :deep(.field-input):hover:not(:disabled):not(:focus) {
+  border-color: rgb(var(--color-surface-400));
 }
 
 .column-field :deep(.field-input):focus {
   border-color: rgb(var(--color-primary-500));
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-500), 0.1);
+  background: rgb(var(--color-surface-50));
+  box-shadow: 0 0 0 4px rgba(var(--color-primary-500), 0.1);
 }
 
 html[data-theme="midnight"] .column-field :deep(.field-input) {
-  background: rgb(var(--color-surface-100));
-  border-color: rgba(var(--color-surface-300), 0.8);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  background: rgba(var(--color-surface-50), 0.8);
+  border-color: rgb(var(--color-surface-300));
+  box-shadow: inset 0 1px 2px rgba(var(--color-surface-900), 0.04);
 }
 
 /* Checkbox styling override */
@@ -799,6 +810,7 @@ html[data-theme="midnight"] .column-field :deep(.field-input) {
 /* Drop indicator line shown between rows */
 .drop-indicator {
   @apply h-1 rounded-full my-1;
+  pointer-events: none;
   background: linear-gradient(
     90deg,
     transparent,

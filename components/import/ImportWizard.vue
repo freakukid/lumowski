@@ -56,6 +56,7 @@
         :schema-columns="schemaColumns"
         :initial-mappings="columnMappings"
         @mappings-updated="handleMappingsUpdated"
+        @mapped-count-changed="handleMappedCountChanged"
       />
 
       <!-- Step 4: Preview & Import -->
@@ -171,6 +172,7 @@ const columnMappings = ref<ColumnMapping[]>([])
 const isImporting = ref(false)
 const showResultModal = ref(false)
 const importResult = ref<ImportResult | null>(null)
+const mappedColumnCount = ref(0)
 
 // Computed
 const schemaColumns = computed<ColumnDefinition[]>(() => schema.value || [])
@@ -204,7 +206,11 @@ const canProceed = computed(() => {
     case 'header':
       return true
     case 'mapping':
-      // Check if all required columns are mapped
+      // Check if at least 1 column is mapped
+      if (mappedColumnCount.value === 0) {
+        return false
+      }
+      // Also check if all required columns are mapped
       const requiredColumns = schemaColumns.value.filter((c) => c.required)
       const mappedIds = new Set(
         columnMappings.value
@@ -243,6 +249,10 @@ const handleHeaderSelected = (index: number) => {
 
 const handleMappingsUpdated = (mappings: ColumnMapping[]) => {
   columnMappings.value = mappings
+}
+
+const handleMappedCountChanged = (count: number) => {
+  mappedColumnCount.value = count
 }
 
 const initializeColumnMappings = () => {

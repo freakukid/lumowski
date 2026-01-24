@@ -17,21 +17,21 @@
               :key="rowIndex"
               :class="[
                 'preview-row',
-                { suggested: rowIndex === suggestedHeaderRow && selectedRow === null },
-                { selected: rowIndex === selectedRow },
-                { 'is-header': rowIndex === effectiveHeaderRow },
-                { 'is-data': rowIndex > effectiveHeaderRow },
+                { suggested: getAbsoluteRowIndex(rowIndex) === suggestedHeaderRow && selectedRow === null },
+                { selected: getAbsoluteRowIndex(rowIndex) === selectedRow },
+                { 'is-header': getAbsoluteRowIndex(rowIndex) === effectiveHeaderRow },
+                { 'is-data': getAbsoluteRowIndex(rowIndex) > effectiveHeaderRow },
               ]"
               role="button"
               :tabindex="0"
-              :aria-pressed="rowIndex === effectiveHeaderRow"
+              :aria-pressed="getAbsoluteRowIndex(rowIndex) === effectiveHeaderRow"
               @click="selectRow(rowIndex)"
               @keydown.enter="selectRow(rowIndex)"
               @keydown.space.prevent="selectRow(rowIndex)"
             >
               <td class="row-number">
-                <span class="row-index">{{ rowIndex + 1 }}</span>
-                <span v-if="rowIndex === effectiveHeaderRow" class="header-badge">
+                <span class="row-index">{{ startRowNumber + rowIndex }}</span>
+                <span v-if="getAbsoluteRowIndex(rowIndex) === effectiveHeaderRow" class="header-badge">
                   Header
                 </span>
               </td>
@@ -47,10 +47,36 @@
         </table>
       </div>
 
-      <div v-if="data.length > 10" class="preview-footer">
-        <p class="preview-info">
-          Showing first 10 of {{ data.length }} rows
-        </p>
+      <div v-if="hasPagination" class="preview-footer">
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="pagination-btn"
+            :disabled="isPreviousDisabled"
+            :aria-disabled="isPreviousDisabled"
+            aria-label="Previous page"
+            @click="goToPreviousPage"
+          >
+            <svg class="pagination-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="pagination-info">
+            Rows {{ startRowNumber }}-{{ Math.min(startRowNumber + rowsPerPage - 1, data.length) }} of {{ data.length }}
+          </span>
+          <button
+            type="button"
+            class="pagination-btn"
+            :disabled="isNextDisabled"
+            :aria-disabled="isNextDisabled"
+            aria-label="Next page"
+            @click="goToNextPage"
+          >
+            <svg class="pagination-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -84,9 +110,30 @@ const emit = defineEmits<{
 
 const selectedRow = ref<number | null>(null)
 
-// Show first 10 rows for preview
+// Pagination state
+const currentPage = ref(1)
+const rowsPerPage = 10
+const totalPages = computed(() => Math.ceil(props.data.length / rowsPerPage))
+const hasPagination = computed(() => props.data.length > rowsPerPage)
+const startRowNumber = computed(() => (currentPage.value - 1) * rowsPerPage + 1)
+const isPreviousDisabled = computed(() => currentPage.value <= 1)
+const isNextDisabled = computed(() => currentPage.value >= totalPages.value)
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) currentPage.value--
+}
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value++
+}
+const getAbsoluteRowIndex = (pageRelativeIndex: number): number => {
+  return (currentPage.value - 1) * rowsPerPage + pageRelativeIndex
+}
+
+// Show paginated rows for preview
 const previewRows = computed(() => {
-  return props.data.slice(0, 10)
+  const startIndex = (currentPage.value - 1) * rowsPerPage
+  const endIndex = startIndex + rowsPerPage
+  return props.data.slice(startIndex, endIndex)
 })
 
 // The effective header row (selected or suggested)
@@ -108,9 +155,10 @@ const formatCell = (cell: unknown): string => {
 }
 
 // Handle row selection
-const selectRow = (index: number) => {
-  selectedRow.value = index
-  emit('header-selected', index)
+const selectRow = (pageRelativeIndex: number) => {
+  const absoluteIndex = getAbsoluteRowIndex(pageRelativeIndex)
+  selectedRow.value = absoluteIndex
+  emit('header-selected', absoluteIndex)
 }
 
 // Emit initial header selection
@@ -229,8 +277,36 @@ watch(
   background: rgba(var(--color-surface-50), 0.8);
 }
 
-.preview-info {
-  @apply text-sm text-center;
+.pagination-controls {
+  @apply flex items-center justify-center gap-4;
+}
+
+.pagination-btn {
+  @apply flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl transition-all;
+  background: rgba(var(--color-surface-200), 0.5);
+  color: rgb(var(--color-surface-600));
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: rgba(var(--color-surface-300), 0.5);
+  color: rgb(var(--color-surface-700));
+}
+
+.pagination-btn:focus-visible {
+  @apply outline-none;
+  box-shadow: var(--focus-ring);
+}
+
+.pagination-btn:disabled {
+  @apply opacity-40 cursor-not-allowed;
+}
+
+.pagination-icon {
+  @apply w-5 h-5;
+}
+
+.pagination-info {
+  @apply text-sm font-medium min-w-[140px] text-center;
   color: rgb(var(--color-surface-500));
 }
 

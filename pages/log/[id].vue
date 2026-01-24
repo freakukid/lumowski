@@ -97,7 +97,7 @@
                 <div class="flex items-center gap-2">
                   <div class="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center">
                     <span class="text-xs font-medium text-primary-600">
-                      {{ currentLog.user.name.charAt(0).toUpperCase() }}
+                      {{ currentLog.user?.name?.charAt(0)?.toUpperCase() || '' }}
                     </span>
                   </div>
                   <span>{{ currentLog.user.name }}</span>

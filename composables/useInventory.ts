@@ -8,6 +8,8 @@ interface FetchParams {
   limit?: number
   search?: string
   searchColumns?: string[] | null
+  sortColumn?: string | null
+  sortDirection?: 'asc' | 'desc'
 }
 
 interface FetchResponse {
@@ -28,6 +30,8 @@ export const useInventory = () => {
           limit: params.limit,
           search: params.search,
           searchColumns: params.searchColumns?.join(',') || undefined,
+          sortColumn: params.sortColumn || undefined,
+          sortDirection: params.sortDirection || undefined,
         },
       })
 

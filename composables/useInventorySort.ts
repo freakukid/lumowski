@@ -1,4 +1,4 @@
-import type { ColumnDefinition, DynamicInventoryItem, SortDirection, SortPreference } from '~/types/schema'
+import type { ColumnDefinition, SortDirection, SortPreference } from '~/types/schema'
 
 const STORAGE_KEY = 'inventory-sort-preference'
 
@@ -98,76 +98,6 @@ export const useInventorySort = () => {
     }
   }
 
-  /**
-   * Compare two values based on column type
-   */
-  const compareValues = (
-    a: unknown,
-    b: unknown,
-    columnType: ColumnDefinition['type']
-  ): number => {
-    // Handle null/undefined - always sort to end
-    const aIsEmpty = a === null || a === undefined || a === ''
-    const bIsEmpty = b === null || b === undefined || b === ''
-
-    if (aIsEmpty && bIsEmpty) return 0
-    if (aIsEmpty) return 1 // a goes to end
-    if (bIsEmpty) return -1 // b goes to end
-
-    switch (columnType) {
-      case 'number':
-      case 'currency':
-        return Number(a) - Number(b)
-
-      case 'date': {
-        const dateA = new Date(a as string).getTime()
-        const dateB = new Date(b as string).getTime()
-        // Handle invalid dates
-        if (isNaN(dateA) && isNaN(dateB)) return 0
-        if (isNaN(dateA)) return 1
-        if (isNaN(dateB)) return -1
-        return dateA - dateB
-      }
-
-      case 'text':
-      case 'select':
-      default:
-        return String(a).localeCompare(String(b))
-    }
-  }
-
-  /**
-   * Sort items based on current preference
-   * Returns a new sorted array (doesn't mutate original)
-   */
-  const sortItems = (
-    items: DynamicInventoryItem[],
-    columns: ColumnDefinition[]
-  ): DynamicInventoryItem[] => {
-    const { columnId, direction } = sortPreference.value
-
-    // No sorting - return original order
-    if (columnId === null) {
-      return items
-    }
-
-    // Find the column definition
-    const column = columns.find((c) => c.id === columnId)
-    if (!column) {
-      return items
-    }
-
-    // Create sorted copy
-    const sorted = [...items].sort((a, b) => {
-      const valueA = a.data[columnId]
-      const valueB = b.data[columnId]
-      const comparison = compareValues(valueA, valueB, column.type)
-      return direction === 'asc' ? comparison : -comparison
-    })
-
-    return sorted
-  }
-
   return {
     // State
     sortPreference: computed(() => sortPreference.value),
@@ -176,6 +106,5 @@ export const useInventorySort = () => {
     initSort,
     setSort,
     toggleDirection,
-    sortItems,
   }
 }

@@ -203,45 +203,49 @@ onMounted(async () => {
 
 const handleCreate = async () => {
   error.value = ''
-  try {
-    const business = await createBusiness(businessName.value)
-    // Add the new business to the list
-    authStore.addBusiness({
-      id: business.id,
-      name: business.name,
-      role: 'OWNER',
-      memberCount: 1,
-      joinedAt: new Date().toISOString(),
-    })
-    // The newly created business is automatically selected (tokens updated by createBusiness)
-    // Redirect to business selection page
-    router.push('/business/select')
-  } catch (e: unknown) {
-    const err = e as { data?: { message?: string } }
-    error.value = err.data?.message || 'Failed to create business'
+  const result = await createBusiness(businessName.value)
+
+  if (!result.success) {
+    error.value = result.error
+    return
   }
+
+  const business = result.business
+  // Add the new business to the list
+  authStore.addBusiness({
+    id: business.id,
+    name: business.name,
+    role: 'OWNER',
+    memberCount: 1,
+    joinedAt: new Date().toISOString(),
+  })
+  // The newly created business is automatically selected (tokens updated by createBusiness)
+  // Redirect to business selection page
+  router.push('/business/select')
 }
 
 const handleJoin = async () => {
   error.value = ''
-  try {
-    const business = await joinBusiness(inviteCode.value)
-    // Add the new business to the list
-    const member = business.members?.find((m) => m.userId === authStore.user?.id)
-    authStore.addBusiness({
-      id: business.id,
-      name: business.name,
-      role: member?.role || 'EMPLOYEE',
-      memberCount: business.members?.length || 1,
-      joinedAt: new Date().toISOString(),
-    })
-    // The joined business is automatically selected (tokens updated by joinBusiness)
-    // Redirect to home since business is now selected
-    router.push('/')
-  } catch (e: unknown) {
-    const err = e as { data?: { message?: string } }
-    error.value = err.data?.message || 'Failed to join business'
+  const result = await joinBusiness(inviteCode.value)
+
+  if (!result.success) {
+    error.value = result.error
+    return
   }
+
+  const business = result.business
+  // Add the new business to the list
+  const member = business.members?.find((m) => m.userId === authStore.user?.id)
+  authStore.addBusiness({
+    id: business.id,
+    name: business.name,
+    role: member?.role || 'EMPLOYEE',
+    memberCount: business.members?.length || 1,
+    joinedAt: new Date().toISOString(),
+  })
+  // The joined business is automatically selected (tokens updated by joinBusiness)
+  // Redirect to home since business is now selected
+  router.push('/')
 }
 </script>
 

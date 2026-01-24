@@ -139,10 +139,20 @@
         </table>
       </div>
 
-      <div v-if="totalRowCount > maxPreviewRows" class="preview-footer">
-        <p class="preview-info">
-          Showing first {{ maxPreviewRows }} of {{ totalRowCount }} rows
-        </p>
+      <div v-if="hasPagination" class="preview-footer">
+        <div class="pagination-controls">
+          <button type="button" class="pagination-btn" :disabled="isPreviousDisabled" :aria-disabled="isPreviousDisabled" aria-label="Previous page" @click="goToPreviousPage">
+            <svg class="pagination-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="pagination-info">Rows {{ startRowNumber }}-{{ endRowNumber }} of {{ totalRowCount }}</span>
+          <button type="button" class="pagination-btn" :disabled="isNextDisabled" :aria-disabled="isNextDisabled" aria-label="Next page" @click="goToNextPage">
+            <svg class="pagination-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -261,7 +271,21 @@ const emit = defineEmits<{
   import: [validOnly: boolean]
 }>()
 
-const maxPreviewRows = 50
+// Pagination state
+const currentPage = ref(1)
+const rowsPerPage = 50
+
+const totalPages = computed(() => Math.ceil(props.dataRows.length / rowsPerPage))
+const hasPagination = computed(() => props.dataRows.length > rowsPerPage)
+const startRowIndex = computed(() => (currentPage.value - 1) * rowsPerPage)
+const endRowIndex = computed(() => Math.min(startRowIndex.value + rowsPerPage, props.dataRows.length))
+const startRowNumber = computed(() => startRowIndex.value + 1)
+const endRowNumber = computed(() => endRowIndex.value)
+const isPreviousDisabled = computed(() => currentPage.value <= 1)
+const isNextDisabled = computed(() => currentPage.value >= totalPages.value)
+
+const goToPreviousPage = () => { if (currentPage.value > 1) currentPage.value-- }
+const goToNextPage = () => { if (currentPage.value < totalPages.value) currentPage.value++ }
 
 // Confirmation modal state
 const showConfirmModal = ref(false)
@@ -286,15 +310,17 @@ const activeMappings = computed(() => {
   return props.columnMappings.filter((m) => !m.skip)
 })
 
-// Preview data with validation
+// Preview data with validation (paginated)
 const previewData = computed(() => {
-  const rows = props.dataRows.slice(0, maxPreviewRows)
+  const rows = props.dataRows.slice(startRowIndex.value, endRowIndex.value)
 
   return rows.map((row, index) => {
-    const validation = validateRow(row, index)
+    const absoluteIndex = startRowIndex.value + index
+    const validation = validateRow(row, absoluteIndex)
     return {
       data: row,
       validation,
+      absoluteIndex,
     }
   })
 })
@@ -323,12 +349,19 @@ const totalWarningCount = computed(() => {
 // Expandable warnings panel state
 const showWarningsPanel = ref(false)
 
-// Get all warnings for expandable panel (limited to preview rows)
+// Get all warnings for expandable panel (all rows, not just preview)
+// NOTE: Only validates when panel is open to avoid expensive computation
 const allWarnings = computed(() => {
+  // Early return if panel is closed - avoid expensive validation
+  if (!showWarningsPanel.value) {
+    return []
+  }
+
   const warnings: Array<{ rowIndex: number; warning: SanitizationWarning }> = []
 
-  previewData.value.forEach((row, index) => {
-    row.validation.warnings.forEach((warning) => {
+  props.dataRows.forEach((row, index) => {
+    const validation = validateRow(row, index)
+    validation.warnings.forEach((warning) => {
       warnings.push({ rowIndex: index, warning })
     })
   })
@@ -665,6 +698,40 @@ const confirmImport = () => {
 
 .preview-info {
   @apply text-sm text-center;
+  color: rgb(var(--color-surface-500));
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  @apply flex items-center justify-center gap-4;
+}
+
+.pagination-btn {
+  @apply flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl transition-all;
+  background: rgba(var(--color-surface-200), 0.5);
+  color: rgb(var(--color-surface-600));
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: rgba(var(--color-surface-300), 0.5);
+  color: rgb(var(--color-surface-700));
+}
+
+.pagination-btn:focus-visible {
+  @apply outline-none;
+  box-shadow: var(--focus-ring);
+}
+
+.pagination-btn:disabled {
+  @apply opacity-40 cursor-not-allowed;
+}
+
+.pagination-icon {
+  @apply w-5 h-5;
+}
+
+.pagination-info {
+  @apply text-sm font-medium min-w-[140px] text-center;
   color: rgb(var(--color-surface-500));
 }
 

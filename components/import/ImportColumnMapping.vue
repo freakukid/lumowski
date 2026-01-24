@@ -56,15 +56,24 @@
 
           <!-- New Column Form -->
           <div v-if="mapping.newColumn" class="new-column-form">
-            <input
-              v-model="mapping.newColumn.name"
-              type="text"
-              class="input column-name-input"
-              placeholder="Column name"
-              aria-label="New column name"
-              maxlength="100"
-              @input="mapping.newColumn.name = sanitizeColumnName(mapping.newColumn.name); updateMapping(index)"
-            />
+            <!-- Column Name Field -->
+            <div class="new-column-field">
+              <label
+                :for="`name-${mapping.fileColumnIndex}`"
+                class="new-column-label"
+              >
+                Column Name
+              </label>
+              <input
+                :id="`name-${mapping.fileColumnIndex}`"
+                v-model="mapping.newColumn.name"
+                type="text"
+                class="input column-name-input"
+                placeholder="e.g., SKU, Description"
+                maxlength="100"
+                @input="mapping.newColumn.name = sanitizeColumnName(mapping.newColumn.name); updateMapping(index)"
+              />
+            </div>
             <div class="type-role-container">
               <!-- Role dropdown FIRST (selecting role auto-sets type) -->
               <div class="new-column-field">
@@ -155,6 +164,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'mappings-updated': [mappings: ColumnMapping[]]
+  'mapped-count-changed': [count: number]
 }>()
 
 const { validateMappings } = useColumnMatcher()
@@ -180,6 +190,15 @@ const validation = computed(() => {
 const mappedCount = computed(() => {
   return localMappings.value.filter((m) => !m.skip && (m.schemaColumnId || m.newColumn)).length
 })
+
+// Watch mappedCount and emit when it changes
+watch(
+  () => mappedCount.value,
+  (newCount) => {
+    emit('mapped-count-changed', newCount)
+  },
+  { immediate: true }
+)
 
 // Computed: roles that are already in use (from schema or new columns)
 const takenRoles = computed(() => {

@@ -112,7 +112,7 @@
               >
                 <!-- Large Avatar -->
                 <div class="mobile-business-avatar">
-                  {{ businessName.charAt(0).toUpperCase() }}
+                  {{ businessName?.charAt(0)?.toUpperCase() || '' }}
                 </div>
                 <div class="flex-1 min-w-0">
                   <!-- Business Name (prominent) -->

@@ -9,12 +9,67 @@ import type { JwtPayload } from '~/server/utils/auth'
 const MAX_ITEMS_FOR_CLIENT_FILTERING = 500
 
 /**
+ * Maximum number of items to sort in memory.
+ * Prevents performance issues with large datasets.
+ */
+const MAX_ITEMS_FOR_SORTING = 5000
+
+/**
  * Normalizes a string for search comparison by removing all non-alphanumeric
  * characters and converting to lowercase.
  * Example: "10-65" -> "1065", "Part #A-123" -> "parta123"
  */
 function normalizeForSearch(value: string): string {
   return value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+}
+
+/**
+ * Sorts an array of inventory items by a specified column.
+ * Handles different column types (number, currency, date, text) appropriately.
+ * Items with null/undefined values are sorted to the end.
+ */
+function sortItemsByColumn<T extends { data: unknown }>(
+  items: T[],
+  sortColumn: string,
+  sortDirection: 'asc' | 'desc',
+  columns: ColumnDefinition[]
+): T[] {
+  const column = columns.find((c) => c.id === sortColumn)
+  if (!column) return items
+
+  return [...items].sort((a, b) => {
+    const dataA = a.data as Record<string, unknown>
+    const dataB = b.data as Record<string, unknown>
+    const valA = dataA[sortColumn]
+    const valB = dataB[sortColumn]
+
+    // Handle null/undefined values - always sort to end
+    if (valA == null && valB == null) return 0
+    if (valA == null) return 1
+    if (valB == null) return -1
+
+    let comparison = 0
+    if (column.type === 'number' || column.type === 'currency') {
+      const numA = Number(valA)
+      const numB = Number(valB)
+      if (isNaN(numA) && isNaN(numB)) return 0
+      if (isNaN(numA)) return 1
+      if (isNaN(numB)) return -1
+      comparison = numA - numB
+    } else if (column.type === 'date') {
+      const timeA = new Date(valA as string).getTime()
+      const timeB = new Date(valB as string).getTime()
+      if (isNaN(timeA) && isNaN(timeB)) return 0
+      if (isNaN(timeA)) return 1
+      if (isNaN(timeB)) return -1
+      comparison = timeA - timeB
+    } else {
+      // Text and select types use string comparison
+      comparison = String(valA).localeCompare(String(valB))
+    }
+
+    return sortDirection === 'asc' ? comparison : -comparison
+  })
 }
 
 
@@ -42,6 +97,10 @@ export default defineEventHandler(async (event) => {
     ? searchColumnsParam.split(',').filter(Boolean)
     : null
 
+  // Sort parameters
+  const sortColumn = (query.sortColumn as string) || null
+  const sortDirection = ((query.sortDirection as string) || 'asc') as 'asc' | 'desc'
+
   // Get business schema to know which columns exist
   const schema = await prisma.inventorySchema.findUnique({
     where: { businessId: auth.businessId },
@@ -63,6 +122,14 @@ export default defineEventHandler(async (event) => {
         })
       }
     }
+  }
+
+  // Validate sort column exists in schema to prevent probing attacks
+  if (sortColumn && !validColumnIds.has(sortColumn)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid sort column ID',
+    })
   }
 
   // Base where clause - always filter by business
@@ -106,7 +173,7 @@ export default defineEventHandler(async (event) => {
 
     // Filter items using normalized string comparison
     // This allows "1065" to match "10-65" by stripping special characters
-    const filteredItems = allItems.filter((item) => {
+    let filteredItems = allItems.filter((item) => {
       const data = item.data as Record<string, unknown>
       return textColumnsToSearch.some((col) => {
         const value = data[col.id]
@@ -116,6 +183,17 @@ export default defineEventHandler(async (event) => {
         return false
       })
     })
+
+    // Sort filtered items if sort column specified
+    if (sortColumn) {
+      if (filteredItems.length > MAX_ITEMS_FOR_SORTING) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: `Cannot sort more than ${MAX_ITEMS_FOR_SORTING} items. Please use search to narrow results.`,
+        })
+      }
+      filteredItems = sortItemsByColumn(filteredItems, sortColumn, sortDirection, columns)
+    }
 
     // Apply pagination to filtered results
     const total = filteredItems.length
@@ -127,7 +205,37 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // No search term - use standard database pagination
+  // No search term - check if we need to sort by a JSON column
+  if (sortColumn) {
+    // Sorting by JSON field requires fetching all items and sorting in JavaScript
+    const allItems = await prisma.inventoryItem.findMany({
+      where: baseWhere,
+      orderBy: { updatedAt: 'desc' },
+      include: INVENTORY_ITEM_INCLUDE,
+    })
+
+    // Prevent performance issues with large datasets
+    if (allItems.length > MAX_ITEMS_FOR_SORTING) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Cannot sort more than ${MAX_ITEMS_FOR_SORTING} items. Please use search to narrow results.`,
+      })
+    }
+
+    // Sort items by the specified column
+    const sortedItems = sortItemsByColumn(allItems, sortColumn, sortDirection, columns)
+
+    // Apply pagination to sorted results
+    const total = sortedItems.length
+    const paginatedItems = sortedItems.slice(skip, skip + limit)
+
+    return {
+      items: paginatedItems,
+      pagination: createPaginationResponse(page, limit, total),
+    }
+  }
+
+  // No search and no custom sort - use standard database pagination with default sort
   const [items, total] = await Promise.all([
     prisma.inventoryItem.findMany({
       where: baseWhere,
