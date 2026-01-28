@@ -6,41 +6,9 @@ export interface BusinessContext {
 }
 
 /**
- * Check if user can edit the inventory schema (column definitions).
- * Only OWNER can modify schema to prevent accidental data structure changes.
+ * Check if user has permission to remove a member from the business.
+ * OWNER can remove anyone. BOSS can only remove EMPLOYEE.
  */
-export function canEditSchema(role: BusinessRole | null): boolean {
-  return role === 'OWNER'
-}
-
-/**
- * Check if user can reset inventory (delete all items and columns).
- * This is a destructive operation only available to OWNER.
- */
-export function canResetInventory(role: BusinessRole | null): boolean {
-  return role === 'OWNER'
-}
-
-/**
- * Check if user can access the schema settings page.
- * Only OWNER can access schema management.
- */
-export function canAccessSchemaSettings(role: BusinessRole | null): boolean {
-  return role === 'OWNER'
-}
-
-/**
- * Check if user can manage inventory items (create, update, delete).
- * OWNER and BOSS can manage inventory; EMPLOYEE can only view.
- */
-export function canManageInventory(role: BusinessRole | null): boolean {
-  return role === 'OWNER' || role === 'BOSS'
-}
-
-export function canGenerateInviteCode(role: BusinessRole | null): boolean {
-  return role === 'OWNER' || role === 'BOSS'
-}
-
 export function canRemoveMember(role: BusinessRole | null, targetRole: BusinessRole): boolean {
   if (role === 'OWNER') {
     return true
@@ -49,14 +17,6 @@ export function canRemoveMember(role: BusinessRole | null, targetRole: BusinessR
     return true
   }
   return false
-}
-
-export function canChangeRole(role: BusinessRole | null): boolean {
-  return role === 'OWNER'
-}
-
-export function canManageMembers(role: BusinessRole | null): boolean {
-  return role === 'OWNER' || role === 'BOSS'
 }
 
 export function requireBusiness(businessId: string | null): asserts businessId is string {

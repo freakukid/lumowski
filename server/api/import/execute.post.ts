@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
 import type { ColumnDefinition } from '~/types/schema'
 import type { JwtPayload } from '~/server/utils/auth'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
 
 /**
  * Sanitize column name - remove special characters
@@ -86,7 +87,7 @@ export default defineEventHandler(async (event) => {
     where: { businessId: auth.businessId },
   })
 
-  const existingColumns: ColumnDefinition[] = (existingSchema?.columns as unknown as ColumnDefinition[]) || []
+  const existingColumns: ColumnDefinition[] = parseColumnDefinitions(existingSchema?.columns)
 
   // Build new column definitions in memory (don't persist yet)
   let newColumnDefinitions: ColumnDefinition[] = []

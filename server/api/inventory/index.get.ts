@@ -1,18 +1,13 @@
 import prisma from '~/server/utils/prisma'
 import type { ColumnDefinition } from '~/types/schema'
-import type { JwtPayload } from '~/server/utils/auth'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
 
 /**
- * Maximum number of items to fetch for client-side filtering during search.
- * Prevents memory issues with large inventories.
+ * Maximum number of items to process in memory for search filtering and sorting.
+ * This limit applies to both client-side search filtering and in-memory sorting.
+ * Prevents memory and performance issues with very large inventories.
  */
-const MAX_ITEMS_FOR_CLIENT_FILTERING = 500
-
-/**
- * Maximum number of items to sort in memory.
- * Prevents performance issues with large datasets.
- */
-const MAX_ITEMS_FOR_SORTING = 5000
+const MAX_ITEMS_FOR_IN_MEMORY_PROCESSING = 10000
 
 /**
  * Normalizes a string for search comparison by removing all non-alphanumeric
@@ -73,11 +68,20 @@ function sortItemsByColumn<T extends { data: unknown }>(
 }
 
 
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
+/**
+ * GET /api/inventory
+ * Lists inventory items with pagination, search, and sorting support.
+ *
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - search: Search term for text columns
+ * - searchColumns: Comma-separated column IDs to search
+ * - sortColumn: Column ID to sort by
+ * - sortDirection: 'asc' or 'desc' (default: 'asc')
+ */
+export default businessRoute(async (event, { businessId }) => {
   const query = getQuery(event)
-
-  requireBusiness(auth.businessId)
 
   // Pagination
   const { page, limit, skip } = getPaginationParams(event)
@@ -87,7 +91,7 @@ export default defineEventHandler(async (event) => {
   if (search.length > 255) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Search term too long (max 255 characters)',
+      message: 'Search term too long (max 255 characters)',
     })
   }
 
@@ -103,10 +107,10 @@ export default defineEventHandler(async (event) => {
 
   // Get business schema to know which columns exist
   const schema = await prisma.inventorySchema.findUnique({
-    where: { businessId: auth.businessId },
+    where: { businessId: businessId },
   })
 
-  const columns = (schema?.columns as unknown as ColumnDefinition[]) || []
+  const columns = parseColumnDefinitions(schema?.columns)
 
   // Create a Set of valid column IDs for O(1) lookup
   const validColumnIds = new Set(columns.map((c) => c.id))
@@ -118,7 +122,7 @@ export default defineEventHandler(async (event) => {
       if (!validColumnIds.has(id)) {
         throw createError({
           statusCode: 400,
-          statusMessage: 'Invalid column ID',
+          message: 'Invalid column ID',
         })
       }
     }
@@ -128,13 +132,13 @@ export default defineEventHandler(async (event) => {
   if (sortColumn && !validColumnIds.has(sortColumn)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid sort column ID',
+      message: 'Invalid sort column ID',
     })
   }
 
   // Base where clause - always filter by business
   const baseWhere = {
-    businessId: auth.businessId,
+    businessId: businessId,
   }
 
   // Determine which text columns to search
@@ -160,11 +164,10 @@ export default defineEventHandler(async (event) => {
     })
 
     // Safeguard: prevent memory issues with very large inventories
-    if (allItems.length > MAX_ITEMS_FOR_CLIENT_FILTERING) {
+    if (allItems.length > MAX_ITEMS_FOR_IN_MEMORY_PROCESSING) {
       throw createError({
         statusCode: 400,
-        statusMessage:
-          'Too many items for search. Please use more specific search terms.',
+        message: `Inventory too large for search (${allItems.length} items). Maximum supported: ${MAX_ITEMS_FOR_IN_MEMORY_PROCESSING}.`,
       })
     }
 
@@ -186,12 +189,6 @@ export default defineEventHandler(async (event) => {
 
     // Sort filtered items if sort column specified
     if (sortColumn) {
-      if (filteredItems.length > MAX_ITEMS_FOR_SORTING) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: `Cannot sort more than ${MAX_ITEMS_FOR_SORTING} items. Please use search to narrow results.`,
-        })
-      }
       filteredItems = sortItemsByColumn(filteredItems, sortColumn, sortDirection, columns)
     }
 
@@ -214,11 +211,11 @@ export default defineEventHandler(async (event) => {
       include: INVENTORY_ITEM_INCLUDE,
     })
 
-    // Prevent performance issues with large datasets
-    if (allItems.length > MAX_ITEMS_FOR_SORTING) {
+    // Safeguard: prevent memory issues with very large inventories
+    if (allItems.length > MAX_ITEMS_FOR_IN_MEMORY_PROCESSING) {
       throw createError({
         statusCode: 400,
-        statusMessage: `Cannot sort more than ${MAX_ITEMS_FOR_SORTING} items. Please use search to narrow results.`,
+        message: `Inventory too large for sorting (${allItems.length} items). Maximum supported: ${MAX_ITEMS_FOR_IN_MEMORY_PROCESSING}.`,
       })
     }
 
@@ -247,8 +244,10 @@ export default defineEventHandler(async (event) => {
     prisma.inventoryItem.count({ where: baseWhere }),
   ])
 
+  const pagination = createPaginationResponse(page, limit, total)
+
   return {
     items,
-    pagination: createPaginationResponse(page, limit, total),
+    pagination,
   }
 })

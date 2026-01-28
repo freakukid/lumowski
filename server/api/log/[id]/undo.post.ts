@@ -1,8 +1,9 @@
 import { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
-import type { ColumnDefinition, DynamicInventoryItem } from '~/types/schema'
+import type { DynamicInventoryItem } from '~/types/schema'
 import type { LogChange } from '~/types/log'
-import type { JwtPayload } from '~/server/utils/auth'
+import { managerRoute } from '~/server/utils/apiMiddleware'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
 
 /**
  * Response structure for the undo operation
@@ -13,57 +14,9 @@ interface UndoResponse {
   item?: DynamicInventoryItem
 }
 
-export default defineEventHandler(async (event): Promise<UndoResponse> => {
-  const auth = event.context.auth as JwtPayload
-  if (!auth) {
-    throw createError({
-      statusCode: 401,
-      message: 'Unauthorized',
-    })
-  }
-
-  const id = getRouterParam(event, 'id')
-
-  // --- AUTHORIZATION CHECKS BEFORE ANY OPERATIONS ---
-
-  // Check that user has a business selected
-  requireBusiness(auth.businessId)
-
-  // Check that user has required role
-  requireRole(auth.businessRole, ['OWNER', 'BOSS'], 'undo log actions')
-
+export default managerRoute(async (event, { auth, businessId }): Promise<UndoResponse> => {
   // Validate log ID parameter
-  if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: 'Log ID is required',
-    })
-  }
-
-  // Verify explicit business membership with role check
-  const membership = await prisma.businessMember.findUnique({
-    where: {
-      businessId_userId: {
-        businessId: auth.businessId,
-        userId: auth.userId,
-      },
-    },
-  })
-
-  if (!membership) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have access to this business',
-    })
-  }
-
-  // Verify role matches what's expected (double-check against database)
-  if (!['OWNER', 'BOSS'].includes(membership.role)) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have permission to undo log actions',
-    })
-  }
+  const id = requireIdParam(event, 'id', 'Log ID is required')
 
   // Fetch the log entry
   const log = await prisma.inventoryLog.findUnique({
@@ -86,7 +39,7 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
   }
 
   // Verify the log belongs to the user's business
-  if (log.businessId !== auth.businessId) {
+  if (log.businessId !== businessId) {
     throw createError({
       statusCode: 403,
       message: 'You do not have permission to undo this action',
@@ -111,9 +64,9 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
 
   // Get schema for item name lookup and validation
   const schema = await prisma.inventorySchema.findUnique({
-    where: { businessId: auth.businessId },
+    where: { businessId },
   })
-  const columns = (schema?.columns as unknown as ColumnDefinition[]) || []
+  const columns = parseColumnDefinitions(schema?.columns)
 
   // --- EXECUTE UNDO OPERATION BASED ON ACTION TYPE ---
 
@@ -146,7 +99,7 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
         const restoredItem = await tx.inventoryItem.create({
           data: {
             data: snapshot.data as unknown as Prisma.InputJsonValue,
-            businessId: auth.businessId!,
+            businessId,
             createdById: snapshot.createdById,
           },
           include: {
@@ -186,8 +139,8 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
       })
 
       // Emit socket events for real-time updates
-      emitInventoryCreated(auth.businessId!, result.restoredItem)
-      emitLogUndone(auth.businessId!, result.updatedLog)
+      emitInventoryCreated(businessId, result.restoredItem)
+      emitLogUndone(businessId, result.updatedLog)
 
       // Map the Prisma result to our typed response
       const typedItem: DynamicInventoryItem = {
@@ -229,7 +182,7 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
       }
 
       // Verify item belongs to same business
-      if (existingItem.businessId !== auth.businessId) {
+      if (existingItem.businessId !== businessId) {
         throw createError({
           statusCode: 403,
           message: 'You do not have permission to modify this item',
@@ -288,8 +241,8 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
       })
 
       // Emit socket events for real-time updates
-      emitInventoryUpdated(auth.businessId!, result.updatedItem)
-      emitLogUndone(auth.businessId!, result.updatedLog)
+      emitInventoryUpdated(businessId, result.updatedItem)
+      emitLogUndone(businessId, result.updatedLog)
 
       // Map the Prisma result to our typed response
       const typedItem: DynamicInventoryItem = {

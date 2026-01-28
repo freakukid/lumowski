@@ -1,46 +1,34 @@
 import prisma from '~/server/utils/prisma'
-import type { JwtPayload } from '~/server/utils/auth'
 
 /**
- * Reset Inventory API Endpoint
+ * POST /api/schema/reset
  *
  * Deletes ALL inventory items, schema (columns), inventory logs, and operations for the business.
  * This is a destructive operation that cannot be undone.
  *
  * Only accessible by OWNER role.
  */
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  if (!auth) {
-    throw createError({
-      statusCode: 401,
-      message: 'Unauthorized',
-    })
-  }
-
-  requireBusiness(auth.businessId)
-  requireRole(auth.businessRole, ['OWNER'], 'reset inventory')
-
+export default ownerRoute(async (_event, { businessId }) => {
   // Use a transaction to ensure all operations succeed or fail together
   const result = await prisma.$transaction(async (tx) => {
     // Delete all inventory items for this business
     const deletedItems = await tx.inventoryItem.deleteMany({
-      where: { businessId: auth.businessId! },
+      where: { businessId },
     })
 
     // Delete the inventory schema (columns) for this business
     const deletedSchema = await tx.inventorySchema.deleteMany({
-      where: { businessId: auth.businessId! },
+      where: { businessId },
     })
 
     // Delete all inventory logs for this business
     const deletedLogs = await tx.inventoryLog.deleteMany({
-      where: { businessId: auth.businessId! },
+      where: { businessId },
     })
 
     // Delete all operations for this business
     const deletedOperations = await tx.operation.deleteMany({
-      where: { businessId: auth.businessId! },
+      where: { businessId },
     })
 
     return {
@@ -52,7 +40,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Emit socket event to notify other clients
-  emitInventoryReset(auth.businessId!)
+  emitInventoryReset(businessId)
 
   return {
     success: true,
@@ -62,4 +50,4 @@ export default defineEventHandler(async (event) => {
     deletedLogsCount: result.deletedLogsCount,
     deletedOperationsCount: result.deletedOperationsCount,
   }
-})
+}, 'reset inventory')

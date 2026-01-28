@@ -1,33 +1,26 @@
 import type { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
-import type { ColumnDefinition } from '~/types/schema'
-import type { OperationItem } from '~/types/operation'
-import type { JwtPayload } from '~/server/utils/auth'
+import { managerRoute } from '~/server/utils/apiMiddleware'
+import { safeEmitOperationUndo } from '~/server/utils/socket'
+import { requireIdParam, requireOperationOwnership, parseColumnDefinitions, parseOperationItems } from '~/server/utils/apiHelpers'
 
 /**
  * POST /api/operations/:id/undo
- * Undoes a receiving operation, reverting inventory quantities and costs.
+ * Undoes an operation, reverting inventory quantities and costs.
  *
- * Only OWNER role can undo operations. This is a destructive action that:
- * 1. Subtracts the received quantities from current inventory
- * 2. Recalculates weighted average costs if cost tracking was used
+ * Supported operation types:
+ * - RECEIVING: subtracts the received quantities from inventory
+ * - SALE: adds the sold quantities back to inventory
+ *
+ * Only MANAGER role (OWNER or BOSS) can undo operations. This is a destructive action that:
+ * 1. Reverses quantity changes from current inventory
+ * 2. Recalculates weighted average costs if cost tracking was used (RECEIVING only)
  * 3. Marks the operation as undone with timestamp and user info
  *
  * Returns 409 Conflict if the operation is already undone.
  */
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  const id = getRouterParam(event, 'id')
-
-  requireBusiness(auth.businessId)
-  requireRole(auth.businessRole, ['OWNER'], 'undo operations')
-
-  if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: 'Operation ID is required',
-    })
-  }
+export default managerRoute(async (event, { auth, businessId }) => {
+  const id = requireIdParam(event, 'id', 'Operation ID is required')
 
   // Fetch the operation
   const operation = await prisma.operation.findUnique({
@@ -50,12 +43,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify business membership
-  if (operation.businessId !== auth.businessId) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have permission to undo this operation',
-    })
-  }
+  requireOperationOwnership(operation, businessId, 'undo')
 
   // Check if already undone
   if (operation.undoneAt) {
@@ -67,7 +55,7 @@ export default defineEventHandler(async (event) => {
 
   // Get business schema to find quantity and cost columns
   const schema = await prisma.inventorySchema.findUnique({
-    where: { businessId: auth.businessId },
+    where: { businessId },
   })
 
   if (!schema || !schema.columns) {
@@ -77,7 +65,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const columns = schema.columns as unknown as ColumnDefinition[]
+  const columns = parseColumnDefinitions(schema.columns)
   const quantityColumn = columns.find((c) => c.role === 'quantity')
   const costColumn = columns.find((c) => c.role === 'cost')
 
@@ -88,14 +76,14 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const operationItems = operation.items as unknown as OperationItem[]
+  const operationItems = parseOperationItems(operation.items)
 
   // Fetch all affected items
   const itemIds = operationItems.map((i) => i.itemId)
   const existingItems = await prisma.inventoryItem.findMany({
     where: {
       id: { in: itemIds },
-      businessId: auth.businessId,
+      businessId,
     },
     include: {
       createdBy: {
@@ -128,8 +116,17 @@ export default defineEventHandler(async (event) => {
         ? data[quantityColumn.id] as number
         : 0
 
-      // Subtract the received quantity
-      const newQty = Math.max(0, currentQty - opItem.quantity)
+      // Calculate new quantity based on operation type
+      // RECEIVING: subtract (reverse of adding)
+      // SALE: add back (reverse of subtracting)
+      let newQty: number
+      if (operation.type === 'SALE') {
+        // Add back the sold quantity
+        newQty = currentQty + opItem.quantity
+      } else {
+        // Subtract the received quantity (RECEIVING)
+        newQty = Math.max(0, currentQty - opItem.quantity)
+      }
 
       // Update the item's data
       const newData: Record<string, unknown> = {
@@ -137,8 +134,9 @@ export default defineEventHandler(async (event) => {
         [quantityColumn.id]: newQty,
       }
 
-      // Handle cost recalculation if cost tracking was used
-      if (costColumn && opItem.costPerItem !== undefined && opItem.previousCost !== undefined) {
+      // Handle cost recalculation if cost tracking was used (only for RECEIVING operations)
+      // Sales don't affect the cost - they only subtract quantity
+      if (operation.type === 'RECEIVING' && costColumn && opItem.costPerItem !== undefined && opItem.previousCost !== undefined) {
         // Get current values
         const currentCost = typeof data[costColumn.id] === 'number'
           ? data[costColumn.id] as number
@@ -217,18 +215,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Emit socket events for real-time updates
-  try {
-    // Emit operation undone event
-    emitOperationUndone(auth.businessId!, result.operation)
-
-    // Emit inventory updated events for each affected item
-    for (const item of result.updatedItems) {
-      emitInventoryUpdated(auth.businessId!, item)
-    }
-  } catch (error) {
-    // Log the error but don't fail the operation - socket events are non-critical
-    console.error('Failed to emit socket events:', error)
-  }
+  safeEmitOperationUndo(businessId, result.operation, result.updatedItems)
 
   return {
     success: true,

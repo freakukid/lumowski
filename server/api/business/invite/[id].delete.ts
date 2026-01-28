@@ -1,19 +1,11 @@
 import prisma from '~/server/utils/prisma'
-import type { JwtPayload } from '~/server/utils/auth'
 
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  const id = getRouterParam(event, 'id')
-
-  requireBusiness(auth.businessId)
-  requireRole(auth.businessRole, ['OWNER', 'BOSS'], 'delete invite codes')
-
-  if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: 'Invite code ID is required',
-    })
-  }
+/**
+ * DELETE /api/business/invite/:id
+ * Deletes an invite code. Only OWNER and BOSS roles can delete invite codes.
+ */
+export default managerRoute(async (event, { businessId }) => {
+  const id = requireIdParam(event, 'id', 'Invite code ID is required')
 
   const inviteCode = await prisma.inviteCode.findUnique({
     where: { id },
@@ -26,7 +18,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (inviteCode.businessId !== auth.businessId) {
+  if (inviteCode.businessId !== businessId) {
     throw createError({
       statusCode: 403,
       message: 'You do not have permission to delete this invite code',
@@ -38,4 +30,4 @@ export default defineEventHandler(async (event) => {
   })
 
   return { success: true }
-})
+}, 'delete invite codes')

@@ -1,5 +1,4 @@
 import prisma from '~/server/utils/prisma'
-import type { JwtPayload } from '~/server/utils/auth'
 
 /**
  * DELETE /api/business
@@ -14,17 +13,7 @@ import type { JwtPayload } from '~/server/utils/auth'
  * 4. InventorySchema (references businessId)
  * 5. Business
  */
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-
-  // Ensure user has a business selected
-  requireBusiness(auth.businessId)
-
-  // Only OWNER can delete a business
-  requireRole(auth.businessRole, ['OWNER'], 'delete this business')
-
-  const businessId = auth.businessId
-
+export default ownerRoute(async (_event, { businessId }) => {
   // Verify the business exists before attempting deletion
   const business = await prisma.business.findUnique({
     where: { id: businessId },
@@ -70,4 +59,4 @@ export default defineEventHandler(async (event) => {
     success: true,
     message: `Business "${business.name}" has been permanently deleted`,
   }
-})
+}, 'delete this business')

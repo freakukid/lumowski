@@ -1,18 +1,12 @@
 import prisma from '~/server/utils/prisma'
-import type { JwtPayload } from '~/server/utils/auth'
 
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  const memberId = getRouterParam(event, 'id')
-
-  requireBusiness(auth.businessId)
-
-  if (!memberId) {
-    throw createError({
-      statusCode: 400,
-      message: 'Member ID is required',
-    })
-  }
+/**
+ * DELETE /api/business/members/:id
+ * Removes a member from the business.
+ * Owners can remove anyone, Bosses can remove Employees.
+ */
+export default businessRoute(async (event, { auth, businessId }) => {
+  const memberId = requireIdParam(event, 'id', 'Member ID is required')
 
   const member = await prisma.businessMember.findUnique({
     where: { id: memberId },
@@ -25,7 +19,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (member.businessId !== auth.businessId) {
+  if (member.businessId !== businessId) {
     throw createError({
       statusCode: 403,
       message: 'You do not have permission to remove this member',

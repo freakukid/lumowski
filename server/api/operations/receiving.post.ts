@@ -1,8 +1,13 @@
 import type { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
-import type { ColumnDefinition } from '~/types/schema'
 import type { OperationItem, ReceivingItemInput } from '~/types/operation'
 import type { JwtPayload } from '~/server/utils/auth'
+import { validateDate, STRING_LIMITS } from '~/server/utils/validation'
+import { normalizeStringInput } from '~/server/utils/sanitization'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
+import { requireBusiness, requireRole } from '~/server/utils/permissions'
+import { safeEmitInventoryUpdate } from '~/server/utils/socket'
+import { getItemName } from '~/server/utils/inventoryLog'
 
 /**
  * POST /api/operations/receiving
@@ -39,13 +44,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Parse and validate date
-  const operationDate = new Date(body.date)
-  if (isNaN(operationDate.getTime())) {
-    throw createError({
-      statusCode: 400,
-      message: 'Invalid date format',
-    })
-  }
+  const operationDate = validateDate(body.date)
 
   // Validate items array
   if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -79,10 +78,30 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Validate optional string fields
-  const reference = typeof body.reference === 'string' ? body.reference.trim() || null : null
-  const supplier = typeof body.supplier === 'string' ? body.supplier.trim() || null : null
-  const notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
+  // Validate optional string fields with length limits
+  const reference = normalizeStringInput(body.reference)
+  const supplier = normalizeStringInput(body.supplier)
+  const notes = normalizeStringInput(body.notes)
+
+  // Validate string lengths
+  if (reference && reference.length > STRING_LIMITS.reference) {
+    throw createError({
+      statusCode: 400,
+      message: `Reference must be at most ${STRING_LIMITS.reference} characters`,
+    })
+  }
+  if (supplier && supplier.length > STRING_LIMITS.supplier) {
+    throw createError({
+      statusCode: 400,
+      message: `Supplier must be at most ${STRING_LIMITS.supplier} characters`,
+    })
+  }
+  if (notes && notes.length > STRING_LIMITS.notes) {
+    throw createError({
+      statusCode: 400,
+      message: `Notes must be at most ${STRING_LIMITS.notes} characters`,
+    })
+  }
 
   // Get business schema to find the quantity column
   const schema = await prisma.inventorySchema.findUnique({
@@ -96,7 +115,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const columns = schema.columns as unknown as ColumnDefinition[]
+  const columns = parseColumnDefinitions(schema.columns)
   const quantityColumn = columns.find((c) => c.role === 'quantity')
   const costColumn = columns.find((c) => c.role === 'cost')
 
@@ -247,18 +266,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Emit socket events for real-time updates
-  try {
-    // Emit operation created event
-    emitOperationCreated(auth.businessId!, result.operation)
-
-    // Emit inventory updated events for each affected item
-    for (const item of result.updatedItems) {
-      emitInventoryUpdated(auth.businessId!, item)
-    }
-  } catch (error) {
-    // Log the error but don't fail the operation - socket events are non-critical
-    console.error('Failed to emit socket events:', error)
-  }
+  safeEmitInventoryUpdate(auth.businessId!, result.operation, result.updatedItems)
 
   return result.operation
 })

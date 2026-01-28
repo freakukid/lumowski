@@ -1,25 +1,17 @@
 import prisma from '~/server/utils/prisma'
 import { z } from 'zod'
-import type { JwtPayload } from '~/server/utils/auth'
 
 const updateMemberSchema = z.object({
   role: z.enum(['BOSS', 'EMPLOYEE']),
 })
 
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  const memberId = getRouterParam(event, 'id')
+/**
+ * PUT /api/business/members/:id
+ * Updates a business member's role. Only the business owner can change roles.
+ */
+export default ownerRoute(async (event, { auth, businessId }) => {
   const body = await readBody(event)
-
-  requireBusiness(auth.businessId)
-  requireRole(auth.businessRole, ['OWNER'], 'change member roles')
-
-  if (!memberId) {
-    throw createError({
-      statusCode: 400,
-      message: 'Member ID is required',
-    })
-  }
+  const memberId = requireIdParam(event, 'id', 'Member ID is required')
 
   const result = updateMemberSchema.safeParse(body)
   if (!result.success) {
@@ -40,7 +32,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (member.businessId !== auth.businessId) {
+  if (member.businessId !== businessId) {
     throw createError({
       statusCode: 403,
       message: 'You do not have permission to modify this member',
@@ -78,4 +70,4 @@ export default defineEventHandler(async (event) => {
   })
 
   return updatedMember
-})
+}, 'change member roles')

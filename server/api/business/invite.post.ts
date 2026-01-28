@@ -31,45 +31,62 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Generate unique code
-  let code: string
-  let attempts = 0
-  do {
-    code = generateInviteCodeString()
-    const existing = await prisma.inviteCode.findUnique({ where: { code } })
-    if (!existing) break
-    attempts++
-  } while (attempts < 10)
-
-  if (attempts >= 10) {
-    throw createError({
-      statusCode: 500,
-      message: 'Failed to generate unique invite code',
-    })
-  }
-
   const expiresAt = result.data.expiresInHours
     ? new Date(Date.now() + result.data.expiresInHours * 60 * 60 * 1000)
     : null
 
-  const inviteCode = await prisma.inviteCode.create({
-    data: {
-      code,
-      role: result.data.role,
-      expiresAt,
-      maxUses: result.data.maxUses,
-      businessId: auth.businessId,
-      createdById: auth.userId,
-    },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  })
+  // Generate unique code using retry-on-conflict pattern
+  // This is more efficient than pre-checking because:
+  // 1. It uses the database's unique constraint instead of multiple queries
+  // 2. Only retries on the rare occasion of a collision
+  const MAX_ATTEMPTS = 3
+  let lastError: unknown
 
-  return inviteCode
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const code = generateInviteCodeString()
+
+    try {
+      const inviteCode = await prisma.inviteCode.create({
+        data: {
+          code,
+          role: result.data.role,
+          expiresAt,
+          maxUses: result.data.maxUses,
+          businessId: auth.businessId,
+          createdById: auth.userId,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      })
+
+      return inviteCode
+    } catch (error) {
+      // Check if this is a unique constraint violation (P2002 in Prisma)
+      const isPrismaUniqueError =
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: string }).code === 'P2002'
+
+      if (isPrismaUniqueError) {
+        // Unique constraint violation - retry with a new code
+        lastError = error
+        continue
+      }
+
+      // For any other error, throw immediately
+      throw error
+    }
+  }
+
+  // All attempts failed
+  throw createError({
+    statusCode: 500,
+    message: 'Failed to generate unique invite code after multiple attempts',
+  })
 })

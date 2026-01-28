@@ -1,9 +1,11 @@
 import prisma from '~/server/utils/prisma'
-import { LogAction } from '@prisma/client'
-import type { JwtPayload } from '~/server/utils/auth'
+import type { LogAction } from '@prisma/client'
+import { businessRoute } from '~/server/utils/apiMiddleware'
+import { getPaginationParams, createPaginationResponse } from '~/server/utils/pagination'
+import { LOG_ENTRY_INCLUDE } from '~/server/utils/prismaIncludes'
 
-// Valid log actions derived from the Prisma enum
-const VALID_LOG_ACTIONS = Object.values(LogAction) as string[]
+// Valid log actions - must match the LogAction enum in prisma/schema.prisma
+const VALID_LOG_ACTIONS = ['ITEM_CREATED', 'ITEM_UPDATED', 'ITEM_DELETED', 'SCHEMA_UPDATED'] as const
 
 /**
  * Validates a date string and returns a Date object if valid, null otherwise
@@ -17,34 +19,7 @@ function parseValidDate(dateString: string): Date | null {
   return date
 }
 
-export default defineEventHandler(async (event) => {
-  const auth = event.context.auth as JwtPayload
-  if (!auth) {
-    throw createError({
-      statusCode: 401,
-      message: 'Unauthorized',
-    })
-  }
-
-  requireBusiness(auth.businessId)
-
-  // Verify explicit business membership before querying logs
-  const membership = await prisma.businessMember.findUnique({
-    where: {
-      businessId_userId: {
-        businessId: auth.businessId,
-        userId: auth.userId,
-      },
-    },
-  })
-
-  if (!membership) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have access to this business',
-    })
-  }
-
+export default businessRoute(async (event, { auth, businessId }) => {
   const query = getQuery(event)
 
   // Parse pagination params
@@ -58,7 +33,7 @@ export default defineEventHandler(async (event) => {
     createdAt?: { gte?: Date; lte?: Date }
     OR?: { itemName?: { contains: string; mode: 'insensitive' }; user?: { name: { contains: string; mode: 'insensitive' } } }[]
   } = {
-    businessId: auth.businessId,
+    businessId,
   }
 
   // Action filter - validate against the actual enum values dynamically

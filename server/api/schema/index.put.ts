@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
 import type { ColumnDefinition } from '~/types/schema'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
 
 export default ownerRoute(async (event, { auth, businessId }) => {
   const body = await readBody(event)
@@ -33,7 +34,7 @@ export default ownerRoute(async (event, { auth, businessId }) => {
   const existingSchema = await prisma.inventorySchema.findUnique({
     where: { businessId },
   })
-  const oldColumns = (existingSchema?.columns as unknown as ColumnDefinition[]) || []
+  const oldColumns = parseColumnDefinitions(existingSchema?.columns)
 
   // Upsert schema
   const schema = await prisma.inventorySchema.upsert({

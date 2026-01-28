@@ -1,7 +1,7 @@
 import prisma from '~/server/utils/prisma'
-import type { ColumnDefinition } from '~/types/schema'
 import type { LogChange } from '~/types/log'
-import type { JwtPayload } from '~/server/utils/auth'
+import { businessRoute } from '~/server/utils/apiMiddleware'
+import { parseColumnDefinitions } from '~/server/utils/apiHelpers'
 
 /**
  * Represents a conflict between the current item state and the undo target state
@@ -31,52 +31,8 @@ interface ConflictCheckResponse {
  * For ITEM_UPDATED: Compares current item data with the old values that will be restored
  * For ITEM_DELETED: Checks if the item already exists (was recreated)
  */
-export default defineEventHandler(async (event): Promise<ConflictCheckResponse> => {
-  const auth = event.context.auth as JwtPayload
-  if (!auth) {
-    throw createError({
-      statusCode: 401,
-      message: 'Unauthorized',
-    })
-  }
-
-  const id = getRouterParam(event, 'id')
-
-  // Authorization checks
-  requireBusiness(auth.businessId)
-  requireRole(auth.businessRole, ['OWNER', 'BOSS'], 'check undo conflicts')
-
-  if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: 'Log ID is required',
-    })
-  }
-
-  // Verify explicit business membership
-  const membership = await prisma.businessMember.findUnique({
-    where: {
-      businessId_userId: {
-        businessId: auth.businessId,
-        userId: auth.userId,
-      },
-    },
-  })
-
-  if (!membership) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have access to this business',
-    })
-  }
-
-  // Verify role matches
-  if (!['OWNER', 'BOSS'].includes(membership.role)) {
-    throw createError({
-      statusCode: 403,
-      message: 'You do not have permission to check undo conflicts',
-    })
-  }
+export default businessRoute(async (event, { businessId }): Promise<ConflictCheckResponse> => {
+  const id = requireIdParam(event, 'id', 'Log ID is required')
 
   // Fetch the log entry
   const log = await prisma.inventoryLog.findUnique({
@@ -91,7 +47,7 @@ export default defineEventHandler(async (event): Promise<ConflictCheckResponse> 
   }
 
   // Verify the log belongs to the user's business
-  if (log.businessId !== auth.businessId) {
+  if (log.businessId !== businessId) {
     throw createError({
       statusCode: 403,
       message: 'You do not have permission to access this log entry',
@@ -116,9 +72,9 @@ export default defineEventHandler(async (event): Promise<ConflictCheckResponse> 
 
   // Get schema for field name lookup
   const schema = await prisma.inventorySchema.findUnique({
-    where: { businessId: auth.businessId },
+    where: { businessId },
   })
-  const columns = (schema?.columns as unknown as ColumnDefinition[]) || []
+  const columns = parseColumnDefinitions(schema?.columns)
 
   // Helper to get column name by ID
   const getColumnName = (columnId: string): string => {
@@ -170,7 +126,7 @@ export default defineEventHandler(async (event): Promise<ConflictCheckResponse> 
       }
 
       // Verify item belongs to same business
-      if (existingItem.businessId !== auth.businessId) {
+      if (existingItem.businessId !== businessId) {
         throw createError({
           statusCode: 403,
           message: 'You do not have permission to access this item',

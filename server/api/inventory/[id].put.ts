@@ -2,15 +2,8 @@ import { Prisma } from '@prisma/client'
 import prisma from '~/server/utils/prisma'
 
 export default managerRoute(async (event, { auth, businessId }) => {
-  const id = getRouterParam(event, 'id')
+  const id = requireIdParam(event, 'id', 'Item ID is required')
   const body = await readBody(event)
-
-  if (!id) {
-    throw createError({
-      statusCode: 400,
-      message: 'Item ID is required',
-    })
-  }
 
   // Check if item exists and belongs to this business
   const existingItem = await requireItemOwnership(prisma, id, businessId)

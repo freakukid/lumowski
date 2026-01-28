@@ -2,6 +2,32 @@ import type { ColumnType, ColumnDefinition } from '~/types/schema'
 import type { SanitizationWarning } from '~/types/import'
 
 /**
+ * Normalizes a string input by trimming whitespace and returning null for empty strings.
+ * Safely handles non-string inputs by returning null.
+ *
+ * This is useful for optional string fields where you want to store null
+ * instead of empty strings or untrimmed whitespace.
+ *
+ * @param value - The value to normalize (can be any type)
+ * @returns The trimmed string if non-empty, otherwise null
+ *
+ * @example
+ * normalizeStringInput('  hello  ')  // returns 'hello'
+ * normalizeStringInput('  ')         // returns null
+ * normalizeStringInput('')           // returns null
+ * normalizeStringInput(null)         // returns null
+ * normalizeStringInput(undefined)    // returns null
+ * normalizeStringInput(123)          // returns null
+ */
+export function normalizeStringInput(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+/**
  * Warning types for sanitization operations
  */
 export type SanitizationWarningType = SanitizationWarning['type']
