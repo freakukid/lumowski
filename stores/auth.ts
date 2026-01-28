@@ -145,6 +145,26 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    /**
+     * Updates the business name in both the user's current business and the businesses list.
+     * This ensures the name is reflected everywhere in the UI after an update.
+     */
+    updateBusinessName(newName: string) {
+      // Update the current business name if selected
+      if (this.user?.business) {
+        this.user.business.name = newName
+      }
+
+      // Update the business name in the businesses list
+      const businessId = this.user?.business?.id
+      if (businessId) {
+        const businessInList = this.businesses.find((b) => b.id === businessId)
+        if (businessInList) {
+          businessInList.name = newName
+        }
+      }
+    },
+
     loadTokensFromStorage() {
       if (import.meta.client) {
         this.accessToken = localStorage.getItem('accessToken')

@@ -364,6 +364,35 @@ export const useBusiness = () => {
     }
   }
 
+  /**
+   * Updates the business name.
+   * Only OWNER role can perform this action.
+   *
+   * @param name - The new business name (2-100 characters)
+   */
+  const updateBusinessName = async (name: string) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const business = await authFetch<Business>('/api/business', {
+        method: 'PUT',
+        body: { name },
+      })
+
+      // Update the auth store with the new name for reactivity across components
+      authStore.updateBusinessName(business.name)
+
+      return { success: true as const, business }
+    } catch (e: unknown) {
+      const message = extractApiError(e, 'Failed to update business name')
+      error.value = message
+      return { success: false as const, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     isLoading: readonly(isLoading),
     error: readonly(error),
@@ -380,5 +409,6 @@ export const useBusiness = () => {
     updateBusinessSettings,
     uploadBusinessLogo,
     deleteBusinessLogo,
+    updateBusinessName,
   }
 }

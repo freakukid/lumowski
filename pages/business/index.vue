@@ -340,11 +340,57 @@
             :tabindex="activeTab === 'settings' ? 0 : -1"
             class="tab-panel"
           >
-            <div v-if="isLoadingSettings" class="settings-loading">
+            <div v-if="isLoadingSettings" class="loading-container">
               <div class="loading-spinner"></div>
               <span>Loading settings...</span>
             </div>
             <div v-else class="settings-sections">
+              <!-- Business Name Section -->
+              <div class="settings-section">
+                <div class="settings-section-header">
+                  <h2 class="settings-section-title">Business Name</h2>
+                  <p class="settings-section-description">The name displayed across your business account</p>
+                </div>
+                <div class="business-name-editor">
+                  <!-- View Mode -->
+                  <div v-if="!isEditingName" class="business-name-view">
+                    <span class="business-name-display">{{ business?.name }}</span>
+                    <UiButton variant="ghost" size="sm" aria-label="Edit business name" @click="startEditingName">
+                      <template #icon-left>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </template>
+                      Edit
+                    </UiButton>
+                  </div>
+
+                  <!-- Edit Mode -->
+                  <div v-else class="business-name-edit">
+                    <UiFormGroup for="business-name-input" :error="businessNameError">
+                      <UiInput
+                        id="business-name-input"
+                        v-model="businessNameForm"
+                        placeholder="Enter business name"
+                        :maxlength="100"
+                        :error="!!businessNameError"
+                        :disabled="isSavingName"
+                        @keydown.enter="saveBusinessName"
+                        @keydown.escape="cancelEditingName"
+                      />
+                    </UiFormGroup>
+                    <div class="business-name-actions">
+                      <UiButton variant="secondary" size="sm" :disabled="isSavingName" @click="cancelEditingName">
+                        Cancel
+                      </UiButton>
+                      <UiButton size="sm" :loading="isSavingName" :disabled="!canSaveName" @click="saveBusinessName">
+                        Save
+                      </UiButton>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Logo Upload Section -->
               <div class="settings-section">
                 <div class="settings-section-header">
@@ -1016,6 +1062,7 @@ const {
   updateBusinessSettings,
   uploadBusinessLogo,
   deleteBusinessLogo,
+  updateBusinessName,
 } = useBusiness()
 
 // ============================================
@@ -1078,6 +1125,91 @@ const canTestPrinter = computed(() => {
 // Logo upload state
 const logoUploadRef = ref<InstanceType<typeof import('~/components/business/LogoUpload.vue').default> | null>(null)
 const isUploadingLogo = ref(false)
+
+// Business name editing state
+const isEditingName = ref(false)
+const businessNameForm = ref('')
+const businessNameError = ref<string | undefined>(undefined)
+const isSavingName = ref(false)
+
+/**
+ * Computed property to check if the business name can be saved.
+ * The name must be valid (2-100 chars) and different from the current name.
+ */
+const canSaveName = computed(() => {
+  const trimmedName = businessNameForm.value.trim()
+  return (
+    trimmedName.length >= 2 &&
+    trimmedName.length <= 100 &&
+    trimmedName !== business.value?.name
+  )
+})
+
+/**
+ * Enters edit mode for the business name.
+ * Populates the form with the current name and focuses the input.
+ */
+function startEditingName() {
+  businessNameForm.value = business.value?.name || ''
+  businessNameError.value = undefined
+  isEditingName.value = true
+  nextTick(() => {
+    const inputElement = document.getElementById('business-name-input') as HTMLInputElement | null
+    inputElement?.focus()
+    inputElement?.select()
+  })
+}
+
+/**
+ * Exits edit mode and clears the form state.
+ */
+function cancelEditingName() {
+  isEditingName.value = false
+  businessNameForm.value = ''
+  businessNameError.value = undefined
+}
+
+/**
+ * Validates and saves the new business name.
+ */
+async function saveBusinessName() {
+  const trimmedName = businessNameForm.value.trim()
+
+  // Client-side validation
+  if (trimmedName.length < 2) {
+    businessNameError.value = 'Business name must be at least 2 characters'
+    return
+  }
+  if (trimmedName.length > 100) {
+    businessNameError.value = 'Business name must be at most 100 characters'
+    return
+  }
+  if (trimmedName === business.value?.name) {
+    cancelEditingName()
+    return
+  }
+
+  isSavingName.value = true
+  businessNameError.value = undefined
+
+  try {
+    const result = await updateBusinessName(trimmedName)
+    if (result.success) {
+      // Update the local business state
+      if (business.value) {
+        business.value.name = result.business.name
+      }
+      cancelEditingName()
+      showToast('Business name updated')
+    } else {
+      businessNameError.value = result.error
+    }
+  } catch {
+    businessNameError.value = 'Failed to update business name. Please try again.'
+  } finally {
+    isSavingName.value = false
+  }
+}
 
 // ============================================
 // TABS CONFIGURATION
@@ -1351,27 +1483,38 @@ const inviteForm = reactive({
   maxUses: 10,
 })
 
-async function copyCode(code: string) {
+/**
+ * Copies text to clipboard and shows feedback.
+ * @param text - The text to copy
+ * @param feedbackRef - The ref to set for visual feedback
+ * @param feedbackValue - The value to set on the feedbackRef
+ * @param successMessage - Toast message on success
+ * @param errorMessage - Toast message on failure
+ */
+async function copyToClipboard(
+  text: string,
+  feedbackRef: typeof copiedCode | typeof copiedLink,
+  feedbackValue: string,
+  successMessage: string,
+  errorMessage: string
+) {
   try {
-    await navigator.clipboard.writeText(code)
-    copiedCode.value = code
-    showToast('Code copied to clipboard')
-    setTimeout(() => { copiedCode.value = null }, 2000)
+    await navigator.clipboard.writeText(text)
+    feedbackRef.value = feedbackValue
+    showToast(successMessage)
+    setTimeout(() => { feedbackRef.value = null }, 2000)
   } catch {
-    showToast('Failed to copy code', 'error')
+    showToast(errorMessage, 'error')
   }
 }
 
-async function copyLink(code: string) {
-  try {
-    const link = `${window.location.origin}/business/join?code=${code}`
-    await navigator.clipboard.writeText(link)
-    copiedLink.value = code
-    showToast('Invite link copied')
-    setTimeout(() => { copiedLink.value = null }, 2000)
-  } catch {
-    showToast('Failed to copy link', 'error')
-  }
+function copyCode(code: string) {
+  copyToClipboard(code, copiedCode, code, 'Code copied to clipboard', 'Failed to copy code')
+}
+
+function copyLink(code: string) {
+  const link = `${window.location.origin}/business/join?code=${code}`
+  copyToClipboard(link, copiedLink, code, 'Invite link copied', 'Failed to copy link')
 }
 
 function confirmDeleteInvite(invite: InviteCode) {
@@ -1740,11 +1883,6 @@ onMounted(async () => {
   @apply w-5 h-5 border-2 rounded-full animate-spin;
   border-color: rgb(var(--color-primary-500));
   border-top-color: transparent;
-}
-
-.settings-loading {
-  @apply flex items-center gap-3 justify-center py-12;
-  color: rgb(var(--color-surface-500));
 }
 
 /* ============================================
@@ -2158,6 +2296,32 @@ onMounted(async () => {
 
 .settings-sections {
   @apply space-y-8;
+}
+
+/* Business Name Editor */
+.business-name-editor {
+  @apply mt-2;
+}
+
+.business-name-view {
+  @apply flex items-center justify-between gap-4 min-h-[44px] p-2 -mx-2 rounded-lg transition-colors;
+}
+
+.business-name-view:hover {
+  background: rgba(var(--color-surface-200), 0.3);
+}
+
+.business-name-display {
+  @apply text-lg font-semibold truncate flex-1;
+  color: rgb(var(--color-surface-900));
+}
+
+.business-name-edit {
+  @apply space-y-3;
+}
+
+.business-name-actions {
+  @apply flex items-center gap-2;
 }
 
 .settings-section {
