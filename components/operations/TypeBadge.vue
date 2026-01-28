@@ -36,6 +36,21 @@
         d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
       />
     </svg>
+    <!-- Return icon (refund arrows) -->
+    <svg
+      v-else-if="type === 'RETURN'"
+      class="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
     <span class="operation-badge-text">{{ displayText }}</span>
   </span>
 </template>
@@ -60,6 +75,8 @@ const displayText = computed(() => {
       return 'Receiving'
     case 'SALE':
       return 'Sale'
+    case 'RETURN':
+      return 'Return'
     default:
       return props.type
   }
@@ -95,5 +112,16 @@ html[data-theme="midnight"] .operation-badge-receiving {
 html[data-theme="midnight"] .operation-badge-sale {
   background: rgba(var(--color-primary-500), 0.15);
   color: rgb(var(--color-primary-400));
+}
+
+/* Return - Warning/Orange color scheme */
+.operation-badge-return {
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+}
+
+html[data-theme="midnight"] .operation-badge-return {
+  background: rgba(var(--color-warning-500), 0.15);
+  color: rgb(var(--color-warning-400));
 }
 </style>

@@ -149,6 +149,13 @@ enum LogAction {
 enum OperationType {
   RECEIVING
   SALE
+  RETURN
+}
+
+enum RefundMethod {
+  CASH
+  CARD
+  ORIGINAL_METHOD
 }
 
 model InventoryLog {
@@ -209,6 +216,11 @@ model Operation {
   receiptHeader   String?     // Receipt header text at sale time
   receiptFooter   String?     // Receipt footer text at sale time
 
+  // Return-specific fields
+  originalSaleId  String?       // For RETURN operations: ID of the original SALE
+  returnReason    String?       // Why items are being returned
+  refundMethod    RefundMethod? // How the refund was issued
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   undoneAt      DateTime?
@@ -220,6 +232,11 @@ model Operation {
   userId      String
   undoneBy    User?         @relation("UndoneByUser", fields: [undoneById], references: [id])
 
+  // Self-referential relationship for Sale <-> Return linking
+  originalSale  Operation?    @relation("SaleReturns", fields: [originalSaleId], references: [id])
+  returns       Operation[]   @relation("SaleReturns")
+
   @@index([businessId, createdAt(sort: Desc)])
+  @@index([originalSaleId])
   @@map("operations")
 }

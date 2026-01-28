@@ -26,6 +26,18 @@
             <span class="btn-label">Receipt</span>
           </button>
 
+          <!-- Process Return Button (visible only for non-undone SALE operations) -->
+          <NuxtLink
+            v-if="showProcessReturnButton"
+            :to="`/returns?saleId=${currentOperation?.id}`"
+            class="return-action-btn"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span class="btn-label">Return</span>
+          </NuxtLink>
+
           <!-- Undo Button (visible only for owners, not undone operations) -->
           <button
             v-if="canUndo"
@@ -62,8 +74,12 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11v4m0 0l-2-2m2 2l2-2" />
             </svg>
             <!-- Sale icon -->
-            <svg v-else class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-else-if="currentOperation.type === 'SALE'" class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <!-- Return icon -->
+            <svg v-else-if="currentOperation.type === 'RETURN'" class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </div>
 
@@ -340,10 +356,104 @@
           </div>
         </template>
 
+        <!-- RETURN OPERATION LAYOUT -->
+        <template v-if="isReturnOperation">
+          <!-- Refund Summary Card -->
+          <div :class="['summary-card', 'summary-card-return', { 'summary-card-undone': currentOperation.undoneAt }]">
+            <div class="stats-grid">
+              <!-- Subtotal -->
+              <div class="stat-item">
+                <span class="stat-label">Subtotal</span>
+                <span :class="['stat-value', { 'value-undone': currentOperation.undoneAt }]">
+                  {{ formatCurrency(currentOperation.subtotal ?? totalRefundAmount) }}
+                </span>
+              </div>
+
+              <!-- Tax -->
+              <div class="stat-item">
+                <span class="stat-label">
+                  {{ currentOperation.taxName || 'Tax' }}
+                  <span v-if="currentOperation.taxRate" class="tax-rate">({{ currentOperation.taxRate }}%)</span>
+                </span>
+                <span :class="['stat-value', { 'value-undone': currentOperation.undoneAt }]">
+                  {{ formatCurrency(currentOperation.taxAmount ?? 0) }}
+                </span>
+              </div>
+
+              <!-- Items Count -->
+              <div class="stat-item">
+                <span class="stat-label">Items</span>
+                <span :class="['stat-value', { 'value-undone': currentOperation.undoneAt }]">
+                  {{ currentOperation.items.length }}
+                </span>
+              </div>
+
+              <!-- Refund Method -->
+              <div class="stat-item">
+                <span class="stat-label">Refund Method</span>
+                <span :class="['stat-value', 'stat-value-sm', { 'value-undone': currentOperation.undoneAt }]">
+                  {{ refundMethodDisplay }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Total Refund Bar -->
+            <div :class="['total-bar', 'total-bar-return', { 'total-bar-undone': currentOperation.undoneAt }]">
+              <span class="total-label">Total Refund</span>
+              <span :class="['total-value', { 'value-undone': currentOperation.undoneAt }]">
+                <template v-if="currentOperation.undoneAt">
+                  <s>-{{ formatCurrency(currentOperation.grandTotal ?? totalRefundAmount) }}</s>
+                </template>
+                <template v-else>
+                  -{{ formatCurrency(currentOperation.grandTotal ?? totalRefundAmount) }}
+                </template>
+              </span>
+            </div>
+          </div>
+
+          <!-- Details and Original Sale Cards Grid -->
+          <div class="cards-grid">
+            <!-- Operation Details Card -->
+            <OperationsOperationDetailsCard :operation="currentOperation" />
+
+            <!-- Original Sale Reference Card -->
+            <div class="secondary-card">
+              <div class="card-header">
+                <div class="card-header-icon original-sale-icon">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <span class="card-header-text">Original Sale</span>
+              </div>
+
+              <div class="original-sale-content">
+                <NuxtLink
+                  v-if="currentOperation.originalSaleId"
+                  :to="`/operations/${currentOperation.originalSaleId}`"
+                  class="original-sale-link"
+                >
+                  <span class="original-sale-ref">#{{ currentOperation.originalSaleId.slice(0, 8).toUpperCase() }}</span>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </NuxtLink>
+                <span v-else class="no-original-sale">Original sale not found</span>
+
+                <!-- Return Reason -->
+                <div v-if="currentOperation.returnReason" class="return-reason-section">
+                  <span class="return-reason-label">Reason</span>
+                  <span class="return-reason-value">{{ currentOperation.returnReason }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
         <!-- Items Section (shared layout, different columns) -->
         <div class="items-section">
           <div class="section-header">
-            <h2 class="section-title">Items</h2>
+            <h2 class="section-title">{{ isReturnOperation ? 'Returned Items' : 'Items' }}</h2>
           </div>
 
           <!-- Desktop Table -->
@@ -359,6 +469,10 @@
                       <th class="table-header text-center">Discount</th>
                       <th class="table-header text-right">Line Total</th>
                     </template>
+                    <template v-else-if="isReturnOperation">
+                      <th class="table-header text-center">Condition</th>
+                      <th class="table-header text-right">Refund</th>
+                    </template>
                     <template v-else>
                       <th class="table-header text-center">Stock Change</th>
                       <th v-if="costMetrics.hasCostInfo" class="table-header text-right">Cost Info</th>
@@ -373,8 +487,8 @@
                       </NuxtLink>
                     </td>
                     <td class="table-cell text-center">
-                      <span :class="['qty-badge', isSaleOperation ? 'qty-badge-sale' : 'qty-badge-receiving']">
-                        {{ isSaleOperation ? '-' : '+' }}{{ item.quantity }}
+                      <span :class="['qty-badge', getQtyBadgeClass]">
+                        {{ getQtyPrefix }}{{ item.quantity }}
                       </span>
                     </td>
 
@@ -391,6 +505,18 @@
                       </td>
                       <td class="table-cell text-right">
                         <span class="line-total">{{ formatCurrency((item as SaleOperationItem).lineTotal || 0) }}</span>
+                      </td>
+                    </template>
+
+                    <!-- Return columns -->
+                    <template v-else-if="isReturnOperation">
+                      <td class="table-cell text-center">
+                        <span :class="['condition-badge', `condition-badge-${(item as ReturnOperationItem).condition}`]">
+                          {{ formatCondition((item as ReturnOperationItem).condition) }}
+                        </span>
+                      </td>
+                      <td class="table-cell text-right">
+                        <span class="refund-amount">-{{ formatCurrency((item as ReturnOperationItem).refundAmount || 0) }}</span>
                       </td>
                     </template>
 
@@ -422,8 +548,8 @@
                 <NuxtLink :to="`/inventory/${item.itemId}`" class="item-link">
                   {{ item.itemName }}
                 </NuxtLink>
-                <span :class="['qty-badge', isSaleOperation ? 'qty-badge-sale' : 'qty-badge-receiving']">
-                  {{ isSaleOperation ? '-' : '+' }}{{ item.quantity }}
+                <span :class="['qty-badge', getQtyBadgeClass]">
+                  {{ getQtyPrefix }}{{ item.quantity }}
                 </span>
               </div>
               <div class="item-card-content">
@@ -445,6 +571,20 @@
                   </div>
                 </template>
 
+                <!-- Return-specific fields -->
+                <template v-else-if="isReturnOperation">
+                  <div class="item-card-field">
+                    <span class="field-label">Condition</span>
+                    <span :class="['condition-badge', `condition-badge-${(item as ReturnOperationItem).condition}`]">
+                      {{ formatCondition((item as ReturnOperationItem).condition) }}
+                    </span>
+                  </div>
+                  <div class="item-card-field">
+                    <span class="field-label">Refund</span>
+                    <span class="refund-amount">-{{ formatCurrency((item as ReturnOperationItem).refundAmount || 0) }}</span>
+                  </div>
+                </template>
+
                 <!-- Receiving-specific fields -->
                 <template v-else>
                   <div class="item-card-field">
@@ -461,6 +601,83 @@
                   </div>
                 </template>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Returns Section (only for SALE operations) -->
+        <div v-if="isSaleOperation" class="returns-section">
+          <div class="section-header">
+            <div class="section-header-content">
+              <h2 class="section-title">Returns</h2>
+              <span :class="['return-status-badge', `return-status-${returnStatus.variant}`]">
+                {{ returnStatus.text }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Loading State -->
+          <div v-if="isLoadingReturns" class="returns-loading">
+            <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading returns...</span>
+          </div>
+
+          <!-- No Returns -->
+          <div v-else-if="returnsHistory.length === 0" class="returns-empty">
+            <p>No returns have been processed for this sale.</p>
+          </div>
+
+          <!-- Returns List -->
+          <div v-else class="returns-list">
+            <!-- Summary Stats -->
+            <div v-if="returnsSummary && returnsSummary.activeReturns > 0" class="returns-summary">
+              <div class="returns-summary-stat">
+                <span class="returns-summary-label">Total Refunded</span>
+                <span class="returns-summary-value returns-summary-refund">-{{ formatCurrency(returnsSummary.totalRefunded) }}</span>
+              </div>
+              <div class="returns-summary-stat">
+                <span class="returns-summary-label">Qty Returned</span>
+                <span class="returns-summary-value">{{ returnsSummary.totalReturnedQty }}</span>
+              </div>
+              <div class="returns-summary-stat">
+                <span class="returns-summary-label">Returns</span>
+                <span class="returns-summary-value">{{ returnsSummary.activeReturns }}</span>
+              </div>
+            </div>
+
+            <!-- Returns List Items -->
+            <div class="returns-list-items">
+              <NuxtLink
+                v-for="returnOp in returnsHistory"
+                :key="returnOp.id"
+                :to="`/operations/${returnOp.id}`"
+                :class="['return-item', { 'return-item-undone': returnOp.undoneAt }]"
+              >
+                <div class="return-item-main">
+                  <div class="return-item-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div class="return-item-info">
+                    <span class="return-item-ref">#{{ returnOp.id.slice(0, 8).toUpperCase() }}</span>
+                    <span class="return-item-date">{{ formatDate(returnOp.date) }}</span>
+                  </div>
+                </div>
+                <div class="return-item-right">
+                  <span v-if="returnOp.undoneAt" class="return-item-undone-badge">Undone</span>
+                  <span :class="['return-item-amount', { 'return-item-amount-undone': returnOp.undoneAt }]">
+                    <template v-if="returnOp.undoneAt"><s>-{{ formatCurrency(returnOp.grandTotal ?? 0) }}</s></template>
+                    <template v-else>-{{ formatCurrency(returnOp.grandTotal ?? 0) }}</template>
+                  </span>
+                  <svg class="return-item-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </NuxtLink>
             </div>
           </div>
         </div>
@@ -556,7 +773,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
 import { getPaymentIcon } from '~/components/icons/PaymentIcons'
-import type { Operation, SaleOperationItem, PaymentMethod } from '~/types/operation'
+import type { Operation, SaleOperationItem, ReturnOperationItem, PaymentMethod, RefundMethod } from '~/types/operation'
 import type { BusinessSettings } from '~/types/business'
 
 definePageMeta({
@@ -570,6 +787,8 @@ const { onOperationUndone, offOperationUndone } = useSocket()
 const { formatCurrency } = useCurrency()
 const { formatDate } = useDate()
 const { isPrinting, isSendingEmail } = useReceipt()
+const { formatRefundMethod, formatCondition } = useReturnFormatting()
+const { formatPaymentMethod: formatPaymentMethodBase, PAYMENT_METHOD_LABELS } = usePaymentFormatting()
 
 // ============================================
 // STATE
@@ -580,6 +799,17 @@ const isUndoing = ref(false)
 const showReceiptModal = ref(false)
 const businessSettings = ref<BusinessSettings | null>(null)
 
+// Returns history state (for SALE operations)
+const returnsHistory = ref<Operation[]>([])
+const returnsSummary = ref<{
+  totalReturns: number
+  activeReturns: number
+  undoneReturns: number
+  totalReturnedQty: number
+  totalRefunded: number
+} | null>(null)
+const isLoadingReturns = ref(false)
+
 // ============================================
 // COMPUTED PROPERTIES
 // ============================================
@@ -587,14 +817,46 @@ const businessSettings = ref<BusinessSettings | null>(null)
 /** Whether the current operation is a SALE type */
 const isSaleOperation = computed(() => currentOperation.value?.type === 'SALE')
 
+/** Whether the current operation is a RETURN type */
+const isReturnOperation = computed(() => currentOperation.value?.type === 'RETURN')
+
+/** Whether the current operation is a RECEIVING type */
+const isReceivingOperation = computed(() => currentOperation.value?.type === 'RECEIVING')
+
 /** Whether the current user can undo this operation */
 const canUndo = computed(() => {
   return authStore.isOwner && currentOperation.value && !currentOperation.value.undoneAt
 })
 
-/** Show receipt actions only for non-undone SALE operations */
+/** Show receipt actions only for non-undone SALE and RETURN operations */
 const showReceiptActions = computed(() => {
+  const type = currentOperation.value?.type
+  return (type === 'SALE' || type === 'RETURN') && !currentOperation.value?.undoneAt
+})
+
+/** Show "Process Return" button for non-undone SALE operations */
+const showProcessReturnButton = computed(() => {
   return isSaleOperation.value && !currentOperation.value?.undoneAt
+})
+
+/**
+ * Return status for SALE operations.
+ * Determines the badge text and style based on return history.
+ */
+const returnStatus = computed(() => {
+  if (!returnsSummary.value || returnsSummary.value.activeReturns === 0) {
+    return { text: 'No Returns', variant: 'none' as const }
+  }
+
+  // Check if sale is fully returned by comparing total sold qty with returned qty
+  const totalSoldQty = currentOperation.value?.totalQty ?? 0
+  const totalReturnedQty = returnsSummary.value.totalReturnedQty
+
+  if (totalReturnedQty >= totalSoldQty) {
+    return { text: 'Fully Returned', variant: 'full' as const }
+  }
+
+  return { text: 'Partially Returned', variant: 'partial' as const }
 })
 
 /** Whether any receipt operation is in progress */
@@ -658,27 +920,65 @@ const costMetrics = computed(() => {
 /** Human-readable title based on operation type */
 const operationTitle = computed(() => {
   if (!currentOperation.value) return 'Operation'
-  return currentOperation.value.type === 'RECEIVING'
-    ? 'Receiving Operation'
-    : 'Sale Operation'
+  switch (currentOperation.value.type) {
+    case 'RECEIVING':
+      return 'Receiving Operation'
+    case 'SALE':
+      return 'Sale Operation'
+    case 'RETURN':
+      return 'Return Operation'
+    default:
+      return 'Operation'
+  }
 })
 
 /** CSS class for the header icon based on operation type */
 const headerIconClass = computed(() => {
-  return isSaleOperation.value ? 'header-icon-sale' : 'header-icon-receiving'
+  if (isSaleOperation.value) return 'header-icon-sale'
+  if (isReturnOperation.value) return 'header-icon-return'
+  return 'header-icon-receiving'
+})
+
+/**
+ * Total refund amount for RETURN operations.
+ */
+const totalRefundAmount = computed(() => {
+  if (!isReturnOperation.value || !currentOperation.value) return 0
+  return (currentOperation.value.items as ReturnOperationItem[]).reduce(
+    (sum, item) => sum + (item.refundAmount || 0),
+    0
+  )
+})
+
+/**
+ * Formatted refund method for display.
+ */
+const refundMethodDisplay = computed(() => {
+  const method = currentOperation.value?.refundMethod as RefundMethod | null
+  return formatRefundMethod(method, currentOperation.value?.cardType)
+})
+
+/**
+ * CSS class for qty badge based on operation type.
+ */
+const getQtyBadgeClass = computed(() => {
+  if (isSaleOperation.value) return 'qty-badge-sale'
+  if (isReturnOperation.value) return 'qty-badge-return'
+  return 'qty-badge-receiving'
+})
+
+/**
+ * Prefix for qty display based on operation type.
+ */
+const getQtyPrefix = computed(() => {
+  if (isSaleOperation.value) return '-'
+  if (isReturnOperation.value) return ''
+  return '+'
 })
 
 // ============================================
 // PAYMENT FORMATTING UTILITIES
 // ============================================
-
-/** Payment method display labels */
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod | string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  CHECK: 'Check',
-  OTHER: 'Other',
-}
 
 /** Payment method badge CSS classes */
 const PAYMENT_METHOD_CLASSES: Record<PaymentMethod | string, string> = {
@@ -689,7 +989,8 @@ const PAYMENT_METHOD_CLASSES: Record<PaymentMethod | string, string> = {
 }
 
 function formatPaymentMethod(method: PaymentMethod | string | null): string {
-  return method ? (PAYMENT_METHOD_LABELS[method] || method) : '-'
+  if (!method) return '-'
+  return formatPaymentMethodBase(method) || method
 }
 
 function getPaymentMethodClass(method: PaymentMethod | null): string {
@@ -718,12 +1019,47 @@ function handleOperationUndone(operation: Operation) {
 // LIFECYCLE & DATA FETCHING
 // ============================================
 
+/**
+ * Fetches return history for a SALE operation.
+ * Updates returnsHistory and returnsSummary state.
+ */
+async function fetchReturnsHistory(saleId: string): Promise<void> {
+  isLoadingReturns.value = true
+  try {
+    const response = await $fetch<{
+      saleId: string
+      returns: Operation[]
+      summary: {
+        totalReturns: number
+        activeReturns: number
+        undoneReturns: number
+        totalReturnedQty: number
+        totalRefunded: number
+      }
+    }>(`/api/operations/${saleId}/returns`, {
+      headers: {
+        Authorization: `Bearer ${authStore.accessToken}`,
+      },
+    })
+    returnsHistory.value = response.returns
+    returnsSummary.value = response.summary
+  } catch (error) {
+    console.warn('Failed to fetch returns history:', error)
+    returnsHistory.value = []
+    returnsSummary.value = null
+  } finally {
+    isLoadingReturns.value = false
+  }
+}
+
 onMounted(async () => {
   const id = route.params.id as string
   await fetchOperation(id)
 
-  // Fetch business settings for receipt generation (only needed for SALE operations)
-  if (currentOperation.value?.type === 'SALE') {
+  const operationType = currentOperation.value?.type
+
+  // Fetch business settings for receipt generation (needed for SALE and RETURN operations)
+  if (operationType === 'SALE' || operationType === 'RETURN') {
     try {
       businessSettings.value = await $fetch<BusinessSettings>('/api/business/settings', {
         headers: {
@@ -734,6 +1070,11 @@ onMounted(async () => {
       // If settings fetch fails, continue with defaults
       console.warn('Failed to fetch business settings for receipt')
     }
+  }
+
+  // Fetch returns history for SALE operations
+  if (operationType === 'SALE') {
+    await fetchReturnsHistory(id)
   }
 
   // Subscribe to real-time operation:undone events
@@ -824,6 +1165,11 @@ async function handleUndo() {
   box-shadow: 0 4px 12px rgba(var(--color-accent-500), 0.3);
 }
 
+.header-icon-return {
+  background: linear-gradient(135deg, rgb(var(--color-warning-500)), rgb(var(--color-warning-600)));
+  box-shadow: 0 4px 12px rgba(var(--color-warning-500), 0.3);
+}
+
 .header-text {
   @apply flex flex-col gap-1;
 }
@@ -867,6 +1213,11 @@ async function handleUndo() {
   border: 1px solid rgba(var(--color-accent-500), 0.12);
 }
 
+.summary-card-return {
+  background: rgba(var(--color-warning-500), 0.04);
+  border: 1px solid rgba(var(--color-warning-500), 0.12);
+}
+
 .summary-card-undone {
   background: rgba(var(--color-surface-200), 0.3);
   border-color: rgba(var(--color-surface-300), 0.5);
@@ -875,6 +1226,10 @@ async function handleUndo() {
 /* Stats Grid (shared) */
 .stats-grid {
   @apply grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4;
+}
+
+.stats-grid-3 {
+  @apply grid-cols-3 sm:grid-cols-3;
 }
 
 .stat-item {
@@ -896,6 +1251,10 @@ async function handleUndo() {
 .stat-value {
   @apply text-lg font-bold;
   color: rgb(var(--color-surface-800));
+}
+
+.stat-value-sm {
+  @apply text-base;
 }
 
 .discount-value {
@@ -941,6 +1300,19 @@ async function handleUndo() {
 
 .total-bar-receiving .total-value {
   color: rgb(var(--color-accent-600));
+}
+
+.total-bar-return {
+  background: linear-gradient(135deg, rgba(var(--color-warning-500), 0.1), rgba(var(--color-warning-600), 0.15));
+  border-color: rgba(var(--color-warning-500), 0.2);
+}
+
+.total-bar-return .total-label {
+  color: rgb(var(--color-warning-700));
+}
+
+.total-bar-return .total-value {
+  color: rgb(var(--color-warning-600));
 }
 
 .total-bar-undone {
@@ -1226,6 +1598,11 @@ async function handleUndo() {
   color: rgb(var(--color-error-600));
 }
 
+.qty-badge-return {
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+}
+
 /* Stock Change */
 .stock-change {
   @apply font-medium;
@@ -1277,6 +1654,71 @@ async function handleUndo() {
 .line-total {
   @apply font-bold;
   color: rgb(var(--color-primary-600));
+}
+
+/* Return-specific styles */
+.refund-amount {
+  @apply font-bold;
+  color: rgb(var(--color-warning-600));
+}
+
+.condition-badge {
+  @apply px-2.5 py-1 text-xs font-semibold rounded-lg;
+}
+
+.condition-badge-resellable {
+  background: rgba(var(--color-success-500), 0.1);
+  color: rgb(var(--color-success-600));
+}
+
+.condition-badge-damaged,
+.condition-badge-defective {
+  background: rgba(var(--color-error-500), 0.1);
+  color: rgb(var(--color-error-600));
+}
+
+/* Original Sale Card */
+.original-sale-icon {
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+}
+
+.original-sale-content {
+  @apply space-y-4;
+}
+
+.original-sale-link {
+  @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg font-semibold transition-colors;
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-700));
+}
+
+.original-sale-link:hover {
+  background: rgba(var(--color-warning-500), 0.2);
+}
+
+.original-sale-ref {
+  @apply text-sm;
+}
+
+.no-original-sale {
+  @apply text-sm italic;
+  color: rgb(var(--color-surface-400));
+}
+
+.return-reason-section {
+  @apply pt-3;
+  border-top: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.return-reason-label {
+  @apply block text-xs font-medium uppercase tracking-wide mb-1;
+  color: rgb(var(--color-surface-500));
+}
+
+.return-reason-value {
+  @apply block text-sm;
+  color: rgb(var(--color-surface-700));
 }
 
 /* Mobile Cards */
@@ -1355,9 +1797,22 @@ async function handleUndo() {
 }
 
 @media (max-width: 640px) {
-  .receipt-action-btn .btn-label {
+  .receipt-action-btn .btn-label,
+  .return-action-btn .btn-label {
     @apply sr-only;
   }
+}
+
+.return-action-btn {
+  @apply min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors;
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+  border: 1px solid rgba(var(--color-warning-500), 0.2);
+}
+
+.return-action-btn:hover {
+  background: rgba(var(--color-warning-500), 0.2);
+  border-color: rgba(var(--color-warning-500), 0.3);
 }
 
 .undo-button {
@@ -1485,5 +1940,151 @@ async function handleUndo() {
 .undo-confirm-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* ===================================
+   RETURNS SECTION
+   =================================== */
+.returns-section {
+  @apply mt-6 rounded-2xl overflow-hidden;
+  background: rgba(var(--color-surface-100), 0.5);
+  border: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.returns-section .section-header {
+  @apply px-5 py-4;
+  border-bottom: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+.returns-section .section-header-content {
+  @apply flex items-center justify-between gap-3;
+}
+
+.returns-section .section-title {
+  @apply text-base font-semibold;
+  color: rgb(var(--color-surface-700));
+}
+
+.return-status-badge {
+  @apply px-2.5 py-1 text-xs font-semibold rounded-full;
+}
+
+.return-status-none {
+  background: rgba(var(--color-surface-400), 0.1);
+  color: rgb(var(--color-surface-500));
+}
+
+.return-status-partial {
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+}
+
+.return-status-full {
+  background: rgba(var(--color-warning-500), 0.15);
+  color: rgb(var(--color-warning-700));
+}
+
+.returns-loading {
+  @apply flex items-center justify-center gap-2 py-8 text-sm;
+  color: rgb(var(--color-surface-400));
+}
+
+.returns-empty {
+  @apply py-8 text-center text-sm;
+  color: rgb(var(--color-surface-400));
+}
+
+.returns-list {
+  @apply p-4;
+}
+
+.returns-summary {
+  @apply flex items-center justify-center gap-6 mb-4 pb-4;
+  border-bottom: 1px solid rgba(var(--color-surface-200), 0.6);
+}
+
+.returns-summary-stat {
+  @apply flex flex-col items-center text-center;
+}
+
+.returns-summary-label {
+  @apply text-xs font-medium mb-1;
+  color: rgb(var(--color-surface-500));
+}
+
+.returns-summary-value {
+  @apply text-sm font-bold;
+  color: rgb(var(--color-surface-700));
+}
+
+.returns-summary-refund {
+  color: rgb(var(--color-warning-600));
+}
+
+.returns-list-items {
+  @apply space-y-2;
+}
+
+.return-item {
+  @apply flex items-center justify-between p-3 rounded-xl transition-colors;
+  background: rgba(var(--color-surface-50), 0.8);
+  border: 1px solid rgba(var(--color-surface-200), 0.6);
+}
+
+.return-item:hover {
+  background: rgba(var(--color-warning-500), 0.05);
+  border-color: rgba(var(--color-warning-500), 0.2);
+}
+
+.return-item-undone {
+  opacity: 0.6;
+}
+
+.return-item-main {
+  @apply flex items-center gap-3;
+}
+
+.return-item-icon {
+  @apply flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0;
+  background: rgba(var(--color-warning-500), 0.1);
+  color: rgb(var(--color-warning-600));
+}
+
+.return-item-info {
+  @apply flex flex-col;
+}
+
+.return-item-ref {
+  @apply text-sm font-semibold;
+  color: rgb(var(--color-surface-700));
+}
+
+.return-item-date {
+  @apply text-xs;
+  color: rgb(var(--color-surface-500));
+}
+
+.return-item-right {
+  @apply flex items-center gap-3;
+}
+
+.return-item-undone-badge {
+  @apply px-2 py-0.5 text-xs font-medium rounded;
+  background: rgba(var(--color-surface-400), 0.1);
+  color: rgb(var(--color-surface-500));
+}
+
+.return-item-amount {
+  @apply text-sm font-bold;
+  color: rgb(var(--color-warning-600));
+}
+
+.return-item-amount-undone {
+  color: rgb(var(--color-surface-500));
+}
+
+.return-item-arrow {
+  @apply w-4 h-4 flex-shrink-0;
+  color: rgb(var(--color-surface-400));
 }
 </style>

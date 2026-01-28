@@ -19,7 +19,18 @@
                 d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
               />
             </svg>
-            <span>New Sale</span>
+            <span class="btn-label">New Sale</span>
+          </NuxtLink>
+          <NuxtLink to="/returns" class="add-btn add-btn-return">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            <span class="btn-label">Returns</span>
           </NuxtLink>
           <NuxtLink to="/operations/receiving" class="add-btn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -30,7 +41,7 @@
                 d="M12 6v6m0 0v6m0-6h6m-6 0H6"
               />
             </svg>
-            <span>New Receiving</span>
+            <span class="btn-label">New Receiving</span>
           </NuxtLink>
         </div>
       </div>
@@ -221,6 +232,22 @@ async function changePage(page: number): Promise<void> {
 
 .add-btn-sale:hover {
   box-shadow: 0 6px 20px rgba(var(--color-accent-500), 0.4);
+}
+
+.add-btn-return {
+  background: linear-gradient(135deg, rgb(var(--color-warning-500)), rgb(var(--color-warning-600)));
+  box-shadow: 0 4px 15px rgba(var(--color-warning-500), 0.3);
+}
+
+.add-btn-return:hover {
+  box-shadow: 0 6px 20px rgba(var(--color-warning-500), 0.4);
+}
+
+/* Hide button label text on mobile for compact layout */
+@media (max-width: 640px) {
+  .add-btn .btn-label {
+    @apply sr-only;
+  }
 }
 
 /* Loading State */

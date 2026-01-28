@@ -11,6 +11,7 @@ import { requireIdParam, requireOperationOwnership, parseColumnDefinitions, pars
  * Supported operation types:
  * - RECEIVING: subtracts the received quantities from inventory
  * - SALE: adds the sold quantities back to inventory
+ * - RETURN: subtracts from inventory for resellable items that were restocked
  *
  * Only MANAGER role (OWNER or BOSS) can undo operations. This is a destructive action that:
  * 1. Reverses quantity changes from current inventory
@@ -119,10 +120,22 @@ export default managerRoute(async (event, { auth, businessId }) => {
       // Calculate new quantity based on operation type
       // RECEIVING: subtract (reverse of adding)
       // SALE: add back (reverse of subtracting)
+      // RETURN: subtract for resellable items (reverse of restocking)
       let newQty: number
       if (operation.type === 'SALE') {
         // Add back the sold quantity
         newQty = currentQty + opItem.quantity
+      } else if (operation.type === 'RETURN') {
+        // For RETURN operations, only resellable items were restocked
+        // We need to check the condition field in the operation item
+        const returnItem = opItem as { condition?: string }
+        if (returnItem.condition === 'resellable') {
+          // Subtract the restocked quantity (reverse of adding back)
+          newQty = Math.max(0, currentQty - opItem.quantity)
+        } else {
+          // Damaged/defective items weren't restocked, no change needed
+          continue
+        }
       } else {
         // Subtract the received quantity (RECEIVING)
         newQty = Math.max(0, currentQty - opItem.quantity)

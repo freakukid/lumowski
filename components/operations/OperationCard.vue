@@ -42,6 +42,7 @@
         <span class="item-name">{{ item.itemName }}</span>
         <span class="item-qty">x{{ item.quantity }}</span>
         <span v-if="isSaleItem(item)" class="item-total">{{ formatCurrency(item.lineTotal) }}</span>
+        <span v-else-if="isReturnItem(item)" class="item-total item-refund">-{{ formatCurrency(item.refundAmount) }}</span>
       </div>
       <button
         v-if="hiddenItemsCount > 0"
@@ -85,6 +86,22 @@
         </svg>
         <span class="info-text">{{ formatCurrency(totalReceivingCost) }} <span class="info-label">(total cost)</span></span>
       </div>
+
+      <!-- Original Sale Reference (RETURN) -->
+      <div v-if="operation.type === 'RETURN' && operation.originalSaleId" class="info-row">
+        <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span class="info-text">Return for sale <span class="info-label">#{{ operation.originalSaleId.slice(0, 8).toUpperCase() }}</span></span>
+      </div>
+
+      <!-- Return Reason (RETURN) -->
+      <div v-if="operation.type === 'RETURN' && operation.returnReason" class="info-row">
+        <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span class="info-text">{{ operation.returnReason }}</span>
+      </div>
     </div>
 
     <!-- Footer: User + Reference -->
@@ -96,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Operation, OperationItem, SaleOperationItem } from '~/types/operation'
+import type { Operation, OperationItem, SaleOperationItem, ReturnOperationItem } from '~/types/operation'
 
 const props = defineProps<{
   operation: Operation
@@ -104,17 +121,10 @@ const props = defineProps<{
 
 const { formatCurrency } = useCurrency()
 const { formatDateShort } = useDate()
+const { formatPaymentMethod } = usePaymentFormatting()
 
 /** Number of items to show by default in collapsed state */
 const PREVIEW_ITEM_COUNT = 2
-
-/** Human-readable labels for payment method enum values */
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  CHECK: 'Check',
-  OTHER: 'Other',
-}
 
 /** Track whether items list is expanded */
 const isExpanded = ref(false)
@@ -124,6 +134,13 @@ const isExpanded = ref(false)
  */
 function isSaleItem(item: OperationItem | SaleOperationItem): item is SaleOperationItem {
   return 'lineTotal' in item
+}
+
+/**
+ * Determines if an item is a return item (has refundAmount)
+ */
+function isReturnItem(item: OperationItem | SaleOperationItem | ReturnOperationItem): item is ReturnOperationItem {
+  return 'refundAmount' in item
 }
 
 /**
@@ -152,12 +169,25 @@ function toggleExpanded(): void {
 
 /**
  * Key metric value based on operation type
- * SALE: Grand Total as currency
+ * SALE: Grand Total as currency (includes tax)
+ * RETURN: Grand Total refund as negative currency (includes tax)
  * RECEIVING: +N Total Qty
  */
 const keyMetricValue = computed(() => {
   if (props.operation.type === 'SALE' && props.operation.grandTotal != null) {
     return formatCurrency(props.operation.grandTotal)
+  }
+  if (props.operation.type === 'RETURN') {
+    // Use grandTotal which includes tax, with fallback to calculated subtotal
+    if (props.operation.grandTotal != null) {
+      return `-${formatCurrency(props.operation.grandTotal)}`
+    }
+    // Fallback: Calculate total refund from return items (pre-tax subtotal)
+    const totalRefund = (props.operation.items as ReturnOperationItem[]).reduce(
+      (sum, item) => sum + (item.refundAmount || 0),
+      0
+    )
+    return `-${formatCurrency(totalRefund)}`
   }
   // For RECEIVING or SALE without grandTotal
   return `+${props.operation.totalQty}`
@@ -169,6 +199,9 @@ const keyMetricValue = computed(() => {
 const keyMetricLabel = computed(() => {
   if (props.operation.type === 'SALE' && props.operation.grandTotal != null) {
     return 'Grand Total'
+  }
+  if (props.operation.type === 'RETURN') {
+    return 'Total Refund'
   }
   return 'Total Quantity'
 })
@@ -208,18 +241,6 @@ const paymentDisplay = computed(() => {
 })
 
 /**
- * Formats a payment method enum value for display.
- * Appends card type in parentheses for card payments if available.
- */
-function formatPaymentMethod(method: string, cardType?: string | null): string {
-  const label = PAYMENT_METHOD_LABELS[method] || method
-  if (method === 'CARD' && cardType) {
-    return `${label} (${cardType})`
-  }
-  return label
-}
-
-/**
  * Whether to show the secondary info section
  */
 const hasSecondaryInfo = computed(() => {
@@ -228,6 +249,9 @@ const hasSecondaryInfo = computed(() => {
   }
   if (props.operation.type === 'RECEIVING') {
     return !!props.operation.supplier || totalReceivingCost.value > 0
+  }
+  if (props.operation.type === 'RETURN') {
+    return !!props.operation.originalSaleId || !!props.operation.returnReason
   }
   return false
 })
@@ -259,6 +283,10 @@ const hasSecondaryInfo = computed(() => {
 
 .operation-card-receiving {
   border-left-color: rgb(var(--color-accent-500));
+}
+
+.operation-card-return {
+  border-left-color: rgb(var(--color-warning-500));
 }
 
 /* Undone state */
@@ -343,6 +371,10 @@ const hasSecondaryInfo = computed(() => {
 .item-total {
   @apply text-sm font-semibold min-w-[70px] text-right;
   color: rgb(var(--color-surface-700));
+}
+
+.item-total.item-refund {
+  color: rgb(var(--color-warning-600));
 }
 
 .more-items-btn {

@@ -14,7 +14,7 @@ export interface OperationItem {
   newCost?: number
 }
 
-export type OperationType = 'RECEIVING' | 'SALE'
+export type OperationType = 'RECEIVING' | 'SALE' | 'RETURN'
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'CHECK' | 'OTHER'
 
@@ -81,6 +81,32 @@ export interface SaleOperationItem extends OperationItem {
 }
 
 /**
+ * Refund method for return operations.
+ */
+export type RefundMethod = 'CASH' | 'CARD' | 'ORIGINAL_METHOD'
+
+/**
+ * Condition of returned items.
+ * - resellable: Item can be restocked and sold again
+ * - damaged: Item is physically damaged, cannot be resold
+ * - defective: Item has a defect, cannot be resold
+ */
+export type ReturnItemCondition = 'resellable' | 'damaged' | 'defective'
+
+/**
+ * Return operation item with condition and refund information.
+ * Extends SaleOperationItem with return-specific fields.
+ */
+export interface ReturnOperationItem extends SaleOperationItem {
+  /** Condition of the returned item */
+  condition: ReturnItemCondition
+  /** Specific reason for returning this item */
+  reason?: string
+  /** Refund amount for this item (after applying original discount) */
+  refundAmount: number
+}
+
+/**
  * Stored payment entry in the operation record (without client-side id).
  */
 export interface StoredPaymentEntry {
@@ -139,6 +165,14 @@ export interface Operation {
   /** Receipt footer text at sale time */
   receiptFooter: string | null
 
+  // Return-specific fields
+  /** For RETURN operations: ID of the original SALE */
+  originalSaleId: string | null
+  /** Why items are being returned */
+  returnReason: string | null
+  /** How the refund was issued */
+  refundMethod: RefundMethod | null
+
   createdAt: string
   updatedAt: string
   businessId: string
@@ -153,6 +187,12 @@ export interface Operation {
     id: string
     name: string
   } | null
+
+  // Self-referential relationships for Sale <-> Return linking
+  /** For RETURN operations: the original SALE operation */
+  originalSale?: Operation | null
+  /** For SALE operations: list of RETURN operations against this sale */
+  returns?: Operation[]
 }
 
 export interface OperationListResponse {
@@ -249,3 +289,62 @@ export type SaleOperationInput = {
   notes?: string
   items: SaleItemInput[]
 } & SaleFinancialTotals & CashPaymentDetails & (SinglePaymentInput | SplitPaymentInput)
+
+/**
+ * Input for a single item being returned.
+ */
+export interface ReturnItemInput {
+  /** ID of the inventory item being returned */
+  itemId: string
+  /** Quantity being returned */
+  quantity: number
+  /** Condition of the returned item */
+  condition: ReturnItemCondition
+  /** Specific reason for returning this item */
+  reason?: string
+}
+
+/**
+ * Input for creating a return operation.
+ */
+export interface ReturnOperationInput {
+  /** ID of the original sale operation */
+  originalSaleId: string
+  /** Date of the return */
+  date: string
+  /** Overall reason for the return */
+  reason: string
+  /** How the refund will be issued */
+  refundMethod: RefundMethod
+  /** Card type when refundMethod is 'CARD' */
+  cardType?: CardType
+  /** Optional notes about the return */
+  notes?: string
+  /** Items being returned */
+  items: ReturnItemInput[]
+}
+
+/**
+ * Response for returnable items endpoint.
+ * Shows which items from a sale can still be returned and in what quantity.
+ */
+export interface ReturnableItem {
+  /** Inventory item ID */
+  itemId: string
+  /** Item name at time of sale */
+  itemName: string
+  /** Original quantity sold */
+  originalQty: number
+  /** Quantity already returned */
+  returnedQty: number
+  /** Quantity available to return */
+  availableQty: number
+  /** Original price per item */
+  pricePerItem: number
+  /** Original discount applied */
+  discount?: number
+  /** Original discount type */
+  discountType?: 'percent' | 'fixed'
+  /** Original line total */
+  lineTotal: number
+}

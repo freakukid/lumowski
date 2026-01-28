@@ -103,7 +103,17 @@
 
     <!-- Receipt Template for PDF generation (visually hidden but rendered) -->
     <div class="receipt-container" aria-hidden="true">
+      <!-- Use ReturnReceiptTemplate for RETURN operations, ReceiptTemplate for SALE -->
+      <ReturnsReturnReceiptTemplate
+        v-if="isReturnOperation"
+        ref="receiptTemplateRef"
+        :operation="operation"
+        :original-sale="originalSale"
+        :settings="settings"
+        :business-name="businessName"
+      />
       <ReceiptTemplate
+        v-else
         ref="receiptTemplateRef"
         :operation="operation"
         :settings="settings"
@@ -124,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
 import type { Operation } from '~/types/operation'
 import type { BusinessSettings } from '~/types/business'
 
@@ -152,19 +163,29 @@ const emit = defineEmits<{
 // Receipt composable
 const { generatePDF, printBrowser, printThermal, sendEmail, isPrinting, isSendingEmail, error: receiptError } = useReceipt()
 
+// Auth store for API calls
+const authStore = useAuthStore()
+
 // Component state
 const showEmailInput = ref(false)
 const emailAddress = ref('')
 const emailError = ref('')
 const errorMessage = ref('')
+const originalSale = ref<Operation | null>(null)
+const isLoadingOriginalSale = ref(false)
 
 // Template ref for the receipt component
 const receiptTemplateRef = ref<{ receiptRef: HTMLElement | null } | null>(null)
 
 /**
+ * Whether the current operation is a RETURN type.
+ */
+const isReturnOperation = computed(() => props.operation?.type === 'RETURN')
+
+/**
  * Combined processing state.
  */
-const isProcessing = computed(() => isPrinting.value || isSendingEmail.value)
+const isProcessing = computed(() => isPrinting.value || isSendingEmail.value || isLoadingOriginalSale.value)
 
 /**
  * Validates email address format.
@@ -265,14 +286,41 @@ async function handleSendEmail() {
 }
 
 /**
+ * Fetches the original sale for RETURN operations.
+ * Required to properly display the return receipt.
+ */
+async function fetchOriginalSale(saleId: string): Promise<void> {
+  isLoadingOriginalSale.value = true
+  try {
+    const response = await $fetch<Operation>(`/api/operations/${saleId}`, {
+      headers: {
+        Authorization: `Bearer ${authStore.accessToken}`,
+      },
+    })
+    originalSale.value = response
+  } catch (error) {
+    console.warn('Failed to fetch original sale:', error)
+    originalSale.value = null
+  } finally {
+    isLoadingOriginalSale.value = false
+  }
+}
+
+/**
  * Reset state when modal opens.
  */
-watch(() => props.modelValue, (isOpen) => {
+watch(() => props.modelValue, async (isOpen) => {
   if (isOpen) {
     showEmailInput.value = props.initialShowEmail ?? false
     emailAddress.value = ''
     emailError.value = ''
     errorMessage.value = ''
+    originalSale.value = null
+
+    // Fetch original sale for RETURN operations
+    if (props.operation?.type === 'RETURN' && props.operation.originalSaleId) {
+      await fetchOriginalSale(props.operation.originalSaleId)
+    }
   }
 })
 
