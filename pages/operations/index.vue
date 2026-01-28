@@ -10,6 +10,17 @@
           </p>
         </div>
         <div class="header-actions">
+          <NuxtLink to="/cashier" class="add-btn add-btn-sale">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+            <span>New Sale</span>
+          </NuxtLink>
           <NuxtLink to="/operations/receiving" class="add-btn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -49,101 +60,14 @@
         <!-- Empty State (only shown after load confirms no operations) -->
         <OperationsEmptyState v-if="operations.length === 0" />
 
-        <!-- Operations List -->
+        <!-- Operations Cards Grid -->
         <template v-else>
-          <!-- Desktop Table -->
-          <div class="hidden sm:block">
-            <div class="data-table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th class="data-table-header">Date</th>
-                    <th class="data-table-header">Type</th>
-                    <th class="data-table-header text-center">Items</th>
-                    <th class="data-table-header text-center">Total Qty</th>
-                    <th class="data-table-header">Reference</th>
-                    <th class="data-table-header">User</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="operation in operations"
-                    :key="operation.id"
-                    :class="['data-table-row', 'clickable-row', { 'row-undone': operation.undoneAt }]"
-                    @click="navigateToOperation(operation.id)"
-                  >
-                    <td class="data-table-cell">
-                      {{ formatDate(operation.date) }}
-                    </td>
-                    <td class="data-table-cell">
-                      <div class="flex items-center gap-2">
-                        <OperationsTypeBadge :type="operation.type" />
-                        <span v-if="operation.undoneAt" class="undone-badge">Undone</span>
-                      </div>
-                    </td>
-                    <td class="data-table-cell text-center">
-                      {{ operation.items.length }}
-                    </td>
-                    <td :class="['data-table-cell', 'text-center', 'font-semibold', { 'qty-undone': operation.undoneAt }]">
-                      <template v-if="operation.undoneAt"><s>+{{ operation.totalQty }}</s></template>
-                      <template v-else>+{{ operation.totalQty }}</template>
-                    </td>
-                    <td class="data-table-cell">
-                      <span v-if="operation.reference" class="reference-text">
-                        {{ operation.reference }}
-                      </span>
-                      <span v-else class="empty-text">-</span>
-                    </td>
-                    <td class="data-table-cell">
-                      {{ operation.user.name }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Mobile Cards -->
-          <div class="sm:hidden cards-container">
-            <NuxtLink
+          <div class="operations-cards-grid">
+            <OperationsOperationCard
               v-for="operation in operations"
               :key="operation.id"
-              :to="`/operations/${operation.id}`"
-              :class="['operation-card', 'clickable-card', { 'card-undone': operation.undoneAt }]"
-            >
-              <!-- Card Header -->
-              <div class="card-header">
-                <div class="card-header-left">
-                  <OperationsTypeBadge :type="operation.type" />
-                  <span v-if="operation.undoneAt" class="undone-badge">Undone</span>
-                  <span class="card-date">{{ formatDate(operation.date) }}</span>
-                </div>
-                <div :class="['card-total-qty', { 'qty-undone': operation.undoneAt }]">
-                  <template v-if="operation.undoneAt"><s>+{{ operation.totalQty }}</s></template>
-                  <template v-else>+{{ operation.totalQty }}</template>
-                </div>
-              </div>
-
-              <!-- Card Content -->
-              <div class="card-content">
-                <div class="card-field">
-                  <span class="field-label">Items</span>
-                  <span class="field-value">{{ operation.items.length }} items</span>
-                </div>
-                <div v-if="operation.reference" class="card-field">
-                  <span class="field-label">Reference</span>
-                  <span class="field-value">{{ operation.reference }}</span>
-                </div>
-                <div v-if="operation.supplier" class="card-field">
-                  <span class="field-label">Supplier</span>
-                  <span class="field-value">{{ operation.supplier }}</span>
-                </div>
-                <div class="card-field">
-                  <span class="field-label">By</span>
-                  <span class="field-value">{{ operation.user.name }}</span>
-                </div>
-              </div>
-            </NuxtLink>
+              :operation="operation"
+            />
           </div>
 
           <!-- Pagination -->
@@ -198,8 +122,9 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const router = useRouter()
-const { operations, pagination, isLoading, hasInitiallyLoaded, fetchOperations } = useOperations()
+// Note: isLoading is available but not currently displayed in the UI
+// (initial loading uses hasInitiallyLoaded for cleaner UX)
+const { operations, pagination, hasInitiallyLoaded, fetchOperations } = useOperations()
 const { onOperationUndone, offOperationUndone, onOperationCreated, offOperationCreated } = useSocket()
 
 /**
@@ -237,25 +162,6 @@ onUnmounted(() => {
   offOperationUndone(handleOperationUndone)
   offOperationCreated(handleOperationCreated)
 })
-
-/**
- * Navigates to the operation details page.
- */
-function navigateToOperation(id: string): void {
-  router.push(`/operations/${id}`)
-}
-
-/**
- * Formats a date string for display.
- */
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 /**
  * Changes the current page and fetches operations.
@@ -308,122 +214,32 @@ async function changePage(page: number): Promise<void> {
   box-shadow: 0 6px 20px rgba(var(--color-primary-500), 0.4);
 }
 
+.add-btn-sale {
+  background: linear-gradient(135deg, rgb(var(--color-accent-500)), rgb(var(--color-accent-600)));
+  box-shadow: 0 4px 15px rgba(var(--color-accent-500), 0.3);
+}
+
+.add-btn-sale:hover {
+  box-shadow: 0 6px 20px rgba(var(--color-accent-500), 0.4);
+}
+
 /* Loading State */
 .loading-state {
   @apply flex flex-col items-center justify-center py-20 gap-4;
   color: rgb(var(--color-surface-400));
 }
 
-/* Table Styles */
-.data-table-container {
-  @apply rounded-2xl overflow-hidden;
-  background: rgba(var(--color-surface-100), 0.5);
-  border: 1px solid rgba(var(--color-surface-200), 0.8);
+/* Cards Grid */
+.operations-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
-.data-table {
-  @apply w-full;
-  border-collapse: collapse;
-}
-
-.data-table-header {
-  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
-  background: rgba(var(--color-surface-200), 0.3);
-  color: rgb(var(--color-surface-500));
-}
-
-.data-table-row {
-  border-bottom: 1px solid rgba(var(--color-surface-200), 0.6);
-  transition: background-color 0.15s ease;
-}
-
-.data-table-row:last-child {
-  border-bottom: none;
-}
-
-.data-table-row:hover {
-  background: rgba(var(--color-surface-200), 0.3);
-}
-
-.data-table-row.clickable-row {
-  @apply cursor-pointer;
-}
-
-.data-table-row.clickable-row:hover {
-  background: rgba(var(--color-primary-500), 0.05);
-}
-
-.data-table-cell {
-  @apply px-4 py-3 text-sm;
-  color: rgb(var(--color-surface-700));
-}
-
-.reference-text {
-  @apply font-medium;
-  color: rgb(var(--color-surface-600));
-}
-
-.empty-text {
-  color: rgb(var(--color-surface-400));
-}
-
-/* Mobile Cards */
-.cards-container {
-  @apply space-y-4;
-}
-
-.operation-card {
-  @apply rounded-xl p-4 block;
-  background: rgba(var(--color-surface-100), 0.7);
-  border: 1px solid rgba(var(--color-surface-200), 0.8);
-  text-decoration: none;
-}
-
-.operation-card.clickable-card {
-  @apply cursor-pointer transition-all;
-}
-
-.operation-card.clickable-card:hover {
-  background: rgba(var(--color-primary-500), 0.05);
-  border-color: rgba(var(--color-primary-500), 0.2);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--color-surface-900), 0.08);
-}
-
-.card-header {
-  @apply flex items-center justify-between gap-3 mb-3;
-}
-
-.card-header-left {
-  @apply flex items-center gap-2;
-}
-
-.card-date {
-  @apply text-sm;
-  color: rgb(var(--color-surface-500));
-}
-
-.card-total-qty {
-  @apply text-lg font-bold;
-  color: rgb(var(--color-accent-500));
-}
-
-.card-content {
-  @apply grid grid-cols-2 gap-x-4 gap-y-2;
-}
-
-.card-field {
-  @apply flex flex-col;
-}
-
-.field-label {
-  @apply text-xs font-medium mb-0.5;
-  color: rgb(var(--color-surface-400));
-}
-
-.field-value {
-  @apply text-sm;
-  color: rgb(var(--color-surface-700));
+@media (min-width: 768px) {
+  .operations-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* Pagination */
@@ -448,32 +264,5 @@ async function changePage(page: number): Promise<void> {
 .pagination-info {
   @apply text-sm font-medium;
   color: rgb(var(--color-surface-500));
-}
-
-/* Undone Operation Styles */
-.undone-badge {
-  @apply px-2 py-0.5 text-xs font-semibold rounded-full;
-  background: rgba(var(--color-surface-400), 0.15);
-  color: rgb(var(--color-surface-500));
-}
-
-.row-undone {
-  opacity: 0.7;
-}
-
-.row-undone:hover {
-  opacity: 0.85;
-}
-
-.card-undone {
-  opacity: 0.7;
-}
-
-.card-undone:hover {
-  opacity: 0.85;
-}
-
-.qty-undone {
-  color: rgb(var(--color-surface-500)) !important;
 }
 </style>

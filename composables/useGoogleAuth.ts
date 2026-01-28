@@ -90,6 +90,7 @@ interface CodeClientConfig {
 }
 
 export const useGoogleAuth = () => {
+  const { consumePendingInviteCode } = useInviteCode()
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
   const router = useRouter()
@@ -112,7 +113,15 @@ export const useGoogleAuth = () => {
       authStore.setTokens(result.accessToken, result.refreshToken)
       authStore.setUser(result.user)
 
-      router.push('/')
+      // Check for pending invite code first
+      const pendingCode = consumePendingInviteCode()
+      if (pendingCode) {
+        // Redirect to join page to complete the invite flow
+        router.push(`/business/join?code=${encodeURIComponent(pendingCode)}`)
+      } else {
+        // Default redirect - middleware will handle business selection if needed
+        router.push('/')
+      }
 
       return { success: true, user: result.user }
     } catch (err: unknown) {

@@ -32,8 +32,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Get business membership context with null safety
-  const membership = user.businessMemberships.length > 0 ? user.businessMemberships[0] : null
+  // Preserve the business context from the token instead of picking arbitrary first
+  const membership = user.businessMemberships.find(
+    m => m.businessId === payload.businessId
+  ) ?? (user.businessMemberships.length > 0 ? user.businessMemberships[0] : null)
   const membershipContext = membership
     ? { businessId: membership.businessId, businessRole: membership.role }
     : null

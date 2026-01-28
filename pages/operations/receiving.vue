@@ -98,6 +98,7 @@
           <span>{{ errorMessage }}</span>
         </div>
 
+        <!-- Top Row: Select Items (left) | Items to Receive (right) -->
         <div class="form-layout">
           <!-- Left Column: Item Selector -->
           <div class="form-section">
@@ -117,13 +118,12 @@
 
             <OperationsItemSelector
               v-model="selectedItemIds"
-              :items="items"
               :columns="columns"
             />
           </div>
 
-          <!-- Right Column: Details Form -->
-          <div class="form-section">
+          <!-- Right Column: Items to Receive -->
+          <div class="form-section items-to-receive-section">
             <div class="section-header">
               <div class="section-icon">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,69 +131,45 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="1.5"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
               </div>
-              <span class="section-title">Details</span>
+              <span class="section-title">Items to Receive</span>
+              <span v-if="selectedItems.length > 0" class="section-count">{{ selectedItems.length }} items</span>
             </div>
 
-            <div class="form-fields">
-              <!-- Date -->
-              <div class="form-group">
-                <label for="receiving-date" class="form-label">
-                  Date <span class="required">*</span>
-                </label>
-                <UiDatePicker
-                  id="receiving-date"
-                  v-model="formData.date"
-                  placeholder="Select date"
-                  :required="true"
-                  :clearable="false"
+            <!-- Item Cards or Empty State -->
+            <div v-if="selectedItems.length > 0" class="items-list">
+              <OperationsReceivingItemCard
+                v-for="item in selectedItems"
+                :key="item.id"
+                :item="item"
+                :quantity="itemQuantities[item.id] || 1"
+                :columns="columns"
+                :cost-column="costColumn"
+                :cost-per-item="itemCosts[item.id]"
+                @update:quantity="updateItemQuantity(item.id, $event)"
+                @update:cost-per-item="updateItemCost(item.id, $event)"
+                @remove="removeItem(item.id)"
+              />
+            </div>
+            <div v-else class="empty-items-state">
+              <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                 />
-              </div>
-
-              <!-- Reference -->
-              <div class="form-group">
-                <label for="reference" class="form-label">Reference</label>
-                <input
-                  id="reference"
-                  v-model="formData.reference"
-                  type="text"
-                  placeholder="e.g., PO-001"
-                  class="input"
-                />
-              </div>
-
-              <!-- Supplier -->
-              <div class="form-group">
-                <label for="supplier" class="form-label">Supplier</label>
-                <input
-                  id="supplier"
-                  v-model="formData.supplier"
-                  type="text"
-                  placeholder="e.g., Acme Corp"
-                  class="input"
-                />
-              </div>
-
-              <!-- Notes -->
-              <div class="form-group">
-                <label for="notes" class="form-label">Notes</label>
-                <textarea
-                  id="notes"
-                  v-model="formData.notes"
-                  rows="3"
-                  placeholder="Additional notes..."
-                  class="input textarea"
-                ></textarea>
-              </div>
+              </svg>
+              <p class="empty-text">Select items from the left to add them here</p>
             </div>
           </div>
         </div>
 
-        <!-- Selected Items Section -->
-        <div v-if="selectedItems.length > 0" class="selected-items-section">
+        <!-- Bottom Row: Details Section (full width) -->
+        <div class="details-section">
           <div class="section-header">
             <div class="section-icon">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,28 +177,63 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="1.5"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
             </div>
-            <span class="section-title">Items to Receive</span>
-            <span class="section-count">{{ selectedItems.length }} items</span>
+            <span class="section-title">Details</span>
           </div>
 
-          <!-- Item Cards -->
-          <div class="space-y-3">
-            <OperationsReceivingItemCard
-              v-for="item in selectedItems"
-              :key="item.id"
-              :item="item"
-              :quantity="itemQuantities[item.id] || 1"
-              :columns="columns"
-              :cost-column="costColumn"
-              :cost-per-item="itemCosts[item.id]"
-              @update:quantity="updateItemQuantity(item.id, $event)"
-              @update:cost-per-item="updateItemCost(item.id, $event)"
-              @remove="removeItem(item.id)"
-            />
+          <div class="details-fields">
+            <!-- Date -->
+            <div class="form-group">
+              <label for="receiving-date" class="form-label">
+                Date <span class="required">*</span>
+              </label>
+              <UiDatePicker
+                id="receiving-date"
+                v-model="formData.date"
+                placeholder="Select date"
+                :required="true"
+                :clearable="false"
+              />
+            </div>
+
+            <!-- Reference -->
+            <div class="form-group">
+              <label for="reference" class="form-label">Reference</label>
+              <input
+                id="reference"
+                v-model="formData.reference"
+                type="text"
+                placeholder="e.g., PO-001"
+                class="input"
+              />
+            </div>
+
+            <!-- Supplier -->
+            <div class="form-group">
+              <label for="supplier" class="form-label">Supplier</label>
+              <input
+                id="supplier"
+                v-model="formData.supplier"
+                type="text"
+                placeholder="e.g., Acme Corp"
+                class="input"
+              />
+            </div>
+
+            <!-- Notes -->
+            <div class="form-group form-group-notes">
+              <label for="notes" class="form-label">Notes</label>
+              <textarea
+                id="notes"
+                v-model="formData.notes"
+                rows="3"
+                placeholder="Additional notes..."
+                class="input textarea"
+              ></textarea>
+            </div>
           </div>
         </div>
 
@@ -284,7 +295,8 @@
 </template>
 
 <script setup lang="ts">
-import type { DynamicInventoryItem, ColumnDefinition } from '~/types/schema'
+import type { DynamicInventoryItem } from '~/types/schema'
+import { useInventoryStore } from '~/stores/inventory'
 
 definePageMeta({
   middleware: 'auth',
@@ -292,8 +304,17 @@ definePageMeta({
 
 const router = useRouter()
 const { fetchSchema, isLoading: isSchemaLoading } = useSchema()
-const { items, fetchItems, sortedColumns: columns } = useInventory()
+const { sortedColumns: columns } = useInventory()
+const inventoryStore = useInventoryStore()
 const { isLoading: isSubmitting, createReceiving } = useReceiving()
+const { formatCurrency } = useCurrency()
+
+/**
+ * Gets today's date in YYYY-MM-DD format for form default value.
+ */
+function getTodayDate(): string {
+  return new Date().toISOString().split('T')[0]
+}
 
 // Form state
 const selectedItemIds = ref<string[]>([])
@@ -347,25 +368,11 @@ const totalCost = computed(() => {
 })
 
 /**
- * Formats a number as USD currency.
- */
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-}
-
-/**
- * Gets today's date in YYYY-MM-DD format for the date input default value.
- */
-function getTodayDate(): string {
-  const today = new Date()
-  return today.toISOString().split('T')[0]
-}
-
-/**
  * Computed array of selected inventory items.
+ * Uses the inventory store which is populated by ItemSelector's onItemsFetched callback.
  */
 const selectedItems = computed<DynamicInventoryItem[]>(() => {
-  return items.value.filter((item) => selectedItemIds.value.includes(item.id))
+  return inventoryStore.items.filter((item) => selectedItemIds.value.includes(item.id))
 })
 
 /**
@@ -448,11 +455,9 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
-// Fetch data on mount
+// Fetch schema on mount (items are fetched by ItemSelector with infinite scroll)
 onMounted(async () => {
   await fetchSchema()
-  // Fetch all items (with high limit to get all for selection)
-  await fetchItems({ limit: 1000 })
 })
 </script>
 
@@ -530,7 +535,7 @@ onMounted(async () => {
   border: 1px solid rgba(var(--color-error-500), 0.2);
 }
 
-/* Form Layout */
+/* Form Layout - Top Row (Select Items | Items to Receive) */
 .form-layout {
   @apply grid gap-6 mb-6;
 }
@@ -547,12 +552,47 @@ onMounted(async () => {
   border: 1px solid rgba(var(--color-surface-200), 0.8);
   min-width: 0;
   width: 100%;
+  /* Enable flex children (ItemSelector) to fill remaining height */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop: constrain form-section height to prevent infinite scroll loading */
+@media (min-width: 768px) {
+  .form-layout > .form-section {
+    min-height: 400px;
+    max-height: calc(100vh - 400px);
+    overflow: hidden;
+  }
 }
 
 @media (max-width: 767px) {
   .form-section {
     @apply p-4;
   }
+}
+
+/* Items to Receive Section (right column) */
+.items-to-receive-section {
+  overflow-y: auto;
+}
+
+.items-list {
+  @apply space-y-3 flex-1 overflow-y-auto;
+}
+
+/* Empty State for Items to Receive */
+.empty-items-state {
+  @apply flex flex-col items-center justify-center flex-1 py-8 text-center;
+  color: rgb(var(--color-surface-400));
+}
+
+.empty-items-state svg {
+  @apply mb-3 opacity-50;
+}
+
+.empty-text {
+  @apply text-sm;
 }
 
 .section-header {
@@ -577,6 +617,49 @@ onMounted(async () => {
   color: rgb(var(--color-primary-600));
 }
 
+/* Details Section (full width below the two columns) */
+.details-section {
+  @apply p-5 md:p-6 rounded-2xl mb-6;
+  background: rgba(var(--color-surface-100), 0.5);
+  border: 1px solid rgba(var(--color-surface-200), 0.8);
+}
+
+@media (max-width: 767px) {
+  .details-section {
+    @apply p-4;
+  }
+}
+
+/* Details Fields - Grid layout for wider screens */
+.details-fields {
+  @apply grid gap-4;
+}
+
+@media (min-width: 640px) {
+  .details-fields {
+    @apply grid-cols-2 gap-x-6 gap-y-4;
+  }
+}
+
+@media (min-width: 1024px) {
+  .details-fields {
+    @apply grid-cols-4;
+  }
+}
+
+/* Notes field spans full width on larger screens */
+@media (min-width: 640px) {
+  .form-group-notes {
+    @apply col-span-2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .form-group-notes {
+    @apply col-span-4;
+  }
+}
+
 /* Form Fields */
 .form-fields {
   @apply space-y-4;
@@ -597,13 +680,6 @@ onMounted(async () => {
 
 .textarea {
   @apply resize-none;
-}
-
-/* Selected Items Section */
-.selected-items-section {
-  @apply p-5 md:p-6 rounded-2xl mb-6;
-  background: rgba(var(--color-surface-100), 0.5);
-  border: 1px solid rgba(var(--color-surface-200), 0.8);
 }
 
 /* Summary Section */
@@ -729,7 +805,7 @@ onMounted(async () => {
 }
 
 .form-content-wrapper.disabled .form-layout,
-.form-content-wrapper.disabled .selected-items-section,
+.form-content-wrapper.disabled .details-section,
 .form-content-wrapper.disabled .summary-section {
   @apply opacity-75 cursor-not-allowed;
 }

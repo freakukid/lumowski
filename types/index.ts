@@ -36,7 +36,7 @@ export type {
 } from './schema'
 
 // Import types
-export type { ImportMapping, ImportPreview, ImportResult } from './import'
+export type { ImportResult } from './import'
 
 // Log types
 export type {
@@ -45,7 +45,7 @@ export type {
   LogFilters,
   LogListResponse,
   ConflictCheckResponse,
-  FieldConflict,
+  ConflictField,
 } from './log'
 
 // Operation types

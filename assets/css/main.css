@@ -1206,7 +1206,7 @@ html[data-theme="midnight"] {
 
 /* Card Delete Button */
 .card-delete-btn {
-  @apply absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-lg transition-all;
+  @apply w-9 h-9 flex items-center justify-center rounded-lg transition-all;
   background: rgba(var(--color-error-500), 0.08);
   color: rgb(var(--color-error-500));
 }

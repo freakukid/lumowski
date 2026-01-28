@@ -29,8 +29,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const publicRoutes = ['/login', '/register']
 
   // Routes that require auth but NOT a selected business
-  // These are routes where user is setting up or selecting a business
-  const noSelectedBizRoutes = ['/business/setup', '/business/select']
+  // These are routes where user is setting up, selecting, or joining a business
+  const noSelectedBizRoutes = ['/business/setup', '/business/select', '/business/join']
 
   // --- Handle public routes ---
   // Allow unauthenticated access; redirect authenticated users appropriately

@@ -134,9 +134,10 @@ const emit = defineEmits<{
   'update:costPerItem': [value: number | undefined]
 }>()
 
-// Use shared composable for item display logic
+// Use shared composables for item display and currency formatting
 const columnsRef = computed(() => props.columns)
 const { getItemName, getItemQuantity } = useItemDisplay(columnsRef)
+const { formatCurrency } = useCurrency()
 
 /**
  * Gets the display name for the item.
@@ -197,13 +198,6 @@ const lineTotal = computed(() => {
   if (props.costPerItem === undefined) return null
   return props.quantity * props.costPerItem
 })
-
-/**
- * Formats a number as USD currency.
- */
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-}
 
 /**
  * Handles quantity input changes, ensuring minimum value of 1.

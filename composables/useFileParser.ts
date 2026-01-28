@@ -142,7 +142,10 @@ export const useFileParser = () => {
    */
   const parseSpreadsheetFile = async (file: File): Promise<unknown[][]> => {
     const arrayBuffer = await file.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+    const workbook = XLSX.read(arrayBuffer, {
+      type: 'array',
+      cellDates: true  // Parse dates as JS Date objects
+    })
 
     // Get the first sheet
     const firstSheetName = workbook.SheetNames[0]
@@ -160,6 +163,8 @@ export const useFileParser = () => {
       header: 1,
       defval: '',
       blankrows: false,
+      raw: false,       // Return formatted strings instead of raw numbers
+      dateNF: 'yyyy-mm-dd'  // Format for date cells
     })
 
     return data as unknown[][]

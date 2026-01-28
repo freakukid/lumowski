@@ -11,6 +11,7 @@ export default defineEventHandler((event) => {
     '/api/import',
     '/api/log',
     '/api/operations',
+    '/api/receipt',
   ]
   const isProtected = protectedPaths.some((path) => url.pathname.startsWith(path))
   if (!isProtected) {

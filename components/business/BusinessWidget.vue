@@ -3,9 +3,17 @@
     to="/business/select"
     class="business-widget"
   >
-    <!-- Business Avatar -->
-    <div class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 gradient-mixed">
-      {{ currentBusiness?.name?.charAt(0)?.toUpperCase() || 'B' }}
+    <!-- Business Avatar/Logo -->
+    <div class="business-widget-avatar">
+      <img
+        v-if="logoUrl"
+        :src="logoUrl"
+        alt=""
+        class="business-widget-logo"
+      />
+      <span v-else class="business-widget-initial">
+        {{ currentBusiness?.name?.charAt(0)?.toUpperCase() || 'B' }}
+      </span>
     </div>
 
     <!-- Business Name -->
@@ -28,6 +36,10 @@
 import type { BusinessRole } from '~/types/schema'
 
 const authStore = useAuthStore()
+const { getBusinessSettings } = useBusiness()
+
+// Logo URL computed from the auth store for reactivity
+const logoUrl = computed(() => authStore.businessLogoUrl)
 
 // Current business computed from store
 const currentBusiness = computed(() => {
@@ -54,9 +66,40 @@ function getRoleBadgeClass(role: BusinessRole | null): string {
       return ''
   }
 }
+
+// Fetch business settings (including logo) when business changes and settings aren't cached
+async function fetchSettingsIfNeeded() {
+  if (!authStore.businessId) return
+  // Only fetch if we don't have cached settings
+  if (authStore.businessSettings === null) {
+    await getBusinessSettings()
+  }
+}
+
+// Watch for business changes and fetch settings if needed
+watch(() => authStore.businessId, (newBusinessId, oldBusinessId) => {
+  if (newBusinessId !== oldBusinessId) {
+    fetchSettingsIfNeeded()
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
+/* Business Avatar */
+.business-widget-avatar {
+  @apply w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden;
+  background: rgba(var(--color-surface-50), 0.5);
+}
+
+.business-widget-logo {
+  @apply w-full h-full object-contain;
+}
+
+.business-widget-initial {
+  @apply w-full h-full flex items-center justify-center text-xs font-semibold text-white;
+  background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-accent-500)));
+}
+
 /* Role badge mini (smaller for widget) */
 .role-badge-mini {
   @apply px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide;

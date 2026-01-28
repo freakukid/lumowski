@@ -1,6 +1,6 @@
 // Re-export from organized type files for backward compatibility
 export type { BusinessRole, UserBusiness } from './user'
-export type { Business, BusinessMember, InviteCode } from './business'
+export type { Business, BusinessMember, InviteCode, InviteRole } from './business'
 
 // ============================================================================
 // Column Definition Types

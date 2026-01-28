@@ -89,6 +89,23 @@ export const useInventoryStore = defineStore('inventory', {
       this.pagination.total++
     },
 
+    /**
+     * Merges items into the store, updating existing items and adding new ones.
+     * Used by virtual scroll components that fetch items incrementally.
+     */
+    mergeItems(newItems: DynamicInventoryItem[]) {
+      for (const newItem of newItems) {
+        const existingIndex = this.items.findIndex((item) => item.id === newItem.id)
+        if (existingIndex !== -1) {
+          // Update existing item
+          this.items[existingIndex] = newItem
+        } else {
+          // Add new item
+          this.items.push(newItem)
+        }
+      }
+    },
+
     updateItem(updatedItem: DynamicInventoryItem) {
       const index = this.items.findIndex((item) => item.id === updatedItem.id)
       if (index !== -1) {

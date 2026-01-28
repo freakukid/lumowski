@@ -7,6 +7,12 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-01-14',
   devtools: { enabled: true },
 
+  // Disable experimental app manifest to prevent #app-manifest resolution errors
+  // This is a known issue with Nuxt 3.19+ that can cause 404 errors in dev mode
+  experimental: {
+    appManifest: false,
+  },
+
   // Disable SSR for Capacitor builds (SPA mode required for native apps)
   // Set CAPACITOR_PLATFORM env var when building for mobile
   ssr: !isCapacitor,
@@ -98,6 +104,15 @@ export default defineNuxtConfig({
     jwtSecret: process.env.JWT_SECRET || 'your-super-secret-key-change-in-production',
     jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key-change-in-production',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+    // Email configuration for receipt delivery (Nodemailer SMTP)
+    smtpHost: process.env.SMTP_HOST,
+    smtpPort: process.env.SMTP_PORT || '587',
+    smtpUser: process.env.SMTP_USER,
+    smtpPass: process.env.SMTP_PASS,
+    emailFromAddress: process.env.EMAIL_FROM_ADDRESS || 'receipts@lumowski.app',
     public: {
       apiBase: '/api',
       googleClientId: process.env.GOOGLE_CLIENT_ID,

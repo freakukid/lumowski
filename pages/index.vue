@@ -296,7 +296,6 @@ const {
   initSort,
   setSort,
   toggleDirection,
-  sortItems,
 } = useInventorySort()
 const {
   filterPreference,

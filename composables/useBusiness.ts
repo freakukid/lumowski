@@ -1,7 +1,7 @@
 import { useAuthStore } from '~/stores/auth'
 import { useAuthFetch } from '~/composables/useAuthFetch'
 import { extractApiError } from '~/composables/useApiError'
-import type { Business, BusinessMember, InviteCode } from '~/types/business'
+import type { Business, BusinessMember, InviteCode, BusinessSettings, BusinessSettingsUpdate, LogoUploadResponse } from '~/types/business'
 import type { TokenRefreshResponse } from '~/types/api'
 
 /**
@@ -269,6 +269,101 @@ export const useBusiness = () => {
     }
   }
 
+  const getBusinessSettings = async () => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const settings = await authFetch<BusinessSettings>('/api/business/settings')
+
+      // Update the auth store with settings for reactivity across components
+      authStore.setBusinessSettings({ logoUrl: settings.logoUrl })
+
+      return { success: true as const, settings }
+    } catch (e: unknown) {
+      const message = extractApiError(e, 'Failed to fetch business settings')
+      error.value = message
+      return { success: false as const, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updateBusinessSettings = async (data: BusinessSettingsUpdate) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const settings = await authFetch<BusinessSettings>('/api/business/settings', {
+        method: 'PUT',
+        body: data,
+      })
+
+      return { success: true as const, settings }
+    } catch (e: unknown) {
+      const message = extractApiError(e, 'Failed to update business settings')
+      error.value = message
+      return { success: false as const, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Uploads a new business logo.
+   * Only OWNER role can perform this action.
+   *
+   * @param imageBase64 - Base64 data URL of the image
+   */
+  const uploadBusinessLogo = async (imageBase64: string) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await authFetch<LogoUploadResponse>('/api/business/logo', {
+        method: 'POST',
+        body: { image: imageBase64 },
+      })
+
+      // Update the auth store with the new logo URL for reactivity across components
+      authStore.setBusinessLogoUrl(response.logoUrl)
+
+      return { success: true as const, logoUrl: response.logoUrl }
+    } catch (e: unknown) {
+      const message = extractApiError(e, 'Failed to upload logo. Please try again.')
+      error.value = message
+      return { success: false as const, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Deletes the current business logo.
+   * Only OWNER role can perform this action.
+   */
+  const deleteBusinessLogo = async () => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await authFetch('/api/business/logo', {
+        method: 'DELETE',
+      })
+
+      // Clear the logo URL in the auth store for reactivity across components
+      authStore.setBusinessLogoUrl(null)
+
+      return { success: true as const }
+    } catch (e: unknown) {
+      const message = extractApiError(e, 'Failed to delete logo. Please try again.')
+      error.value = message
+      return { success: false as const, error: message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     isLoading: readonly(isLoading),
     error: readonly(error),
@@ -281,5 +376,9 @@ export const useBusiness = () => {
     removeMember,
     deleteBusiness,
     deleteBusinessById,
+    getBusinessSettings,
+    updateBusinessSettings,
+    uploadBusinessLogo,
+    deleteBusinessLogo,
   }
 }

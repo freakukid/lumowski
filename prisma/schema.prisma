@@ -40,8 +40,34 @@ model Business {
   inventoryItems        InventoryItem[]
   inventoryLogs         InventoryLog[]
   operations            Operation[]
+  settings              BusinessSettings?
 
   @@map("businesses")
+}
+
+model BusinessSettings {
+  id            String   @id @default(uuid())
+  taxRate       Float    @default(0)
+  taxName       String   @default("Tax")
+  receiptHeader String?
+  receiptFooter String?
+  logoUrl       String?
+  logoPublicId  String?
+
+  // Thermal printer configuration
+  thermalPrinterEnabled  Boolean  @default(false)
+  thermalPrinterType     String?  // 'escpos-network' | 'star' | 'epson'
+  thermalPrinterAddress  String?  // IP address (e.g., '192.168.1.100')
+  thermalPrinterPort     Int?     @default(9100)
+  thermalPrinterWidth    Int?     @default(48)  // Characters per line (32, 42, 48)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @unique
+
+  @@map("business_settings")
 }
 
 model BusinessMember {
@@ -122,6 +148,7 @@ enum LogAction {
 
 enum OperationType {
   RECEIVING
+  SALE
 }
 
 model InventoryLog {
@@ -151,18 +178,41 @@ model InventoryLog {
 }
 
 model Operation {
-  id          String        @id @default(uuid())
-  type        OperationType
-  date        DateTime
-  reference   String?
-  supplier    String?
-  notes       String?
-  items       Json          // [{ itemId, itemName, quantity, previousQty, newQty }]
-  totalQty    Int
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  undoneAt    DateTime?
-  undoneById  String?
+  id            String        @id @default(uuid())
+  type          OperationType
+  date          DateTime
+  reference     String?
+  supplier      String?       // For RECEIVING operations
+  customer      String?       // For SALE operations
+  paymentMethod String?       // For SALE operations (legacy single payment): 'CASH', 'CARD', 'CHECK', 'OTHER'
+  cardType      String?       // For SALE operations when paymentMethod is 'CARD': 'VISA', 'MASTERCARD', 'AMEX', 'DISCOVER'
+  checkNumber   String?       // For SALE operations when paymentMethod is 'CHECK'
+  payments      Json?         // For SALE operations with split payments: [{ method, amount, cardType?, checkNumber?, cashTendered? }]
+  notes         String?
+  items         Json          // [{ itemId, itemName, quantity, previousQty, newQty, ... }]
+  totalQty      Int
+
+  // Financial totals (stored at sale time for receipt reprinting)
+  subtotal      Float?        // Sum of (price * qty) before discounts
+  totalDiscount Float?        // Total discount amount applied
+  taxRate       Float?        // Tax rate at time of sale (e.g., 8.25)
+  taxName       String?       // Tax label at time of sale (e.g., "Sales Tax")
+  taxAmount     Float?        // Calculated tax amount
+  grandTotal    Float?        // Final total (subtotal - discount + tax)
+
+  // Cash payment details (for single payment mode)
+  cashTendered  Float?        // Amount customer gave
+  changeGiven   Float?        // Change returned to customer
+
+  // Business branding snapshot (for receipt reprinting)
+  receiptLogoUrl  String?     // Business logo URL at sale time
+  receiptHeader   String?     // Receipt header text at sale time
+  receiptFooter   String?     // Receipt footer text at sale time
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  undoneAt      DateTime?
+  undoneById    String?
 
   business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   businessId  String

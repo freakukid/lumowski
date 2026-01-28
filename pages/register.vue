@@ -190,6 +190,8 @@ const passwordsMatch = computed(() => {
   return form.password === form.confirmPassword
 })
 
+const { consumePendingInviteCode } = useInviteCode()
+
 const handleRegister = async () => {
   error.value = ''
 
@@ -205,8 +207,15 @@ const handleRegister = async () => {
   })
 
   if (result.success) {
-    // Redirect to business selection - new users need to create or join a business
-    router.push('/business/select')
+    // Check for pending invite code first
+    const pendingCode = consumePendingInviteCode()
+    if (pendingCode) {
+      // Redirect to join page to complete the invite flow
+      router.push(`/business/join?code=${encodeURIComponent(pendingCode)}`)
+    } else {
+      // Redirect to business selection - new users need to create or join a business
+      router.push('/business/select')
+    }
   } else {
     error.value = result.error || 'Registration failed'
   }

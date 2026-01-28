@@ -11,6 +11,14 @@ export interface User {
 }
 
 /**
+ * Current business settings that need to be shared across components.
+ * This is separate from User.business to avoid coupling auth with business settings.
+ */
+export interface BusinessSettingsCache {
+  logoUrl: string | null
+}
+
+/**
  * Represents a business the user belongs to (for multi-business selection)
  */
 export interface UserBusinessInfo {
@@ -32,6 +40,8 @@ interface AuthState {
   businessesFetched: boolean
   /** Whether auth has been initialized from localStorage */
   isInitialized: boolean
+  /** Cached business settings (logo, etc.) for the currently selected business */
+  businessSettings: BusinessSettingsCache | null
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -43,6 +53,7 @@ export const useAuthStore = defineStore('auth', {
     businesses: [],
     businessesFetched: false,
     isInitialized: false,
+    businessSettings: null,
   }),
 
   getters: {
@@ -68,6 +79,8 @@ export const useAuthStore = defineStore('auth', {
     /** Whether user can create, update, or delete inventory items (OWNER and BOSS only) */
     canManageInventory: (state) =>
       state.user?.business?.role === 'OWNER' || state.user?.business?.role === 'BOSS',
+    /** Current business logo URL from cached settings */
+    businessLogoUrl: (state) => state.businessSettings?.logoUrl ?? null,
   },
 
   actions: {
@@ -97,6 +110,7 @@ export const useAuthStore = defineStore('auth', {
       this.refreshToken = null
       this.businesses = []
       this.businessesFetched = false
+      this.businessSettings = null
       if (import.meta.client) {
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
@@ -111,6 +125,24 @@ export const useAuthStore = defineStore('auth', {
     addBusiness(business: UserBusinessInfo) {
       // Add to the beginning of the list (most recently joined)
       this.businesses.unshift(business)
+    },
+
+    /**
+     * Sets the cached business settings (logo URL, etc.)
+     */
+    setBusinessSettings(settings: BusinessSettingsCache | null) {
+      this.businessSettings = settings
+    },
+
+    /**
+     * Updates the business logo URL in the cached settings
+     */
+    setBusinessLogoUrl(logoUrl: string | null) {
+      if (!this.businessSettings) {
+        this.businessSettings = { logoUrl }
+      } else {
+        this.businessSettings.logoUrl = logoUrl
+      }
     },
 
     loadTokensFromStorage() {
@@ -225,6 +257,8 @@ export const useAuthStore = defineStore('auth', {
         this.setTokens(response.accessToken, response.refreshToken)
         // Update user with selected business
         this.setUser(response.user)
+        // Clear cached business settings - will be re-fetched by components
+        this.businessSettings = null
 
         return response.user
       } catch (error: unknown) {
@@ -254,6 +288,7 @@ export const useAuthStore = defineStore('auth', {
       if (this.user) {
         this.user.business = null
       }
+      this.businessSettings = null
     },
   },
 })

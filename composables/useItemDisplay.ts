@@ -54,5 +54,17 @@ export const useItemDisplay = (columns: Ref<ColumnDefinition[]>) => {
     return costColumn ? Number(item.data[costColumn.id]) || 0 : 0
   }
 
-  return { getItemName, getItemQuantity, getItemCost }
+  /**
+   * Gets the selling price for an inventory item.
+   * Looks for a column with the 'price' role.
+   *
+   * @param item - The inventory item to extract the price from
+   * @returns The item's selling price, or 0 if no price column exists or value is invalid
+   */
+  const getItemPrice = (item: DynamicInventoryItem): number => {
+    const priceColumn = columns.value.find((c) => c.role === 'price')
+    return priceColumn ? Number(item.data[priceColumn.id]) || 0 : 0
+  }
+
+  return { getItemName, getItemQuantity, getItemCost, getItemPrice }
 }

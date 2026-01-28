@@ -136,13 +136,22 @@ const form = reactive({
 
 const error = ref('')
 
+const { consumePendingInviteCode } = useInviteCode()
+
 const handleLogin = async () => {
   error.value = ''
   const result = await login(form)
   if (result.success) {
-    // Redirect to business selection if no business is selected
-    // The middleware will handle redirecting to / if they have a selected business
-    router.push('/business/select')
+    // Check for pending invite code first
+    const pendingCode = consumePendingInviteCode()
+    if (pendingCode) {
+      // Redirect to join page to complete the invite flow
+      router.push(`/business/join?code=${encodeURIComponent(pendingCode)}`)
+    } else {
+      // Redirect to business selection if no business is selected
+      // The middleware will handle redirecting to / if they have a selected business
+      router.push('/business/select')
+    }
   } else {
     error.value = result.error || 'Login failed'
   }
