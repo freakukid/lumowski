@@ -242,17 +242,29 @@
       title="Delete Item"
       variant="danger"
       size="md"
+      :close-on-backdrop="!isDeleting"
+      :persistent="isDeleting"
     >
       <p class="modal-description">
         Are you sure you want to delete this item? This action cannot be undone.
       </p>
 
       <template #footer>
-        <button class="btn btn-secondary" @click="showDeleteModal = false">
+        <button class="btn btn-secondary" :disabled="isDeleting" @click="showDeleteModal = false">
           Cancel
         </button>
-        <button class="btn btn-danger" @click="handleDelete">
-          Delete
+        <button class="btn btn-danger" :disabled="isDeleting" @click="handleDelete">
+          <svg
+            v-if="isDeleting"
+            class="animate-spin w-4 h-4 mr-2"
+            fill="none"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
         </button>
       </template>
     </UiModal>
@@ -311,6 +323,7 @@ const searchQuery = ref('')
 const itemToDelete = ref<DynamicInventoryItem | null>(null)
 const showDeleteModal = ref(false)
 const showExportModal = ref(false)
+const isDeleting = ref(false)
 const mobileFilterTargetRef = ref<HTMLElement | null>(null)
 
 // Computed property that returns the teleport target only when mounted
@@ -474,9 +487,14 @@ const confirmDelete = (item: DynamicInventoryItem) => {
 
 const handleDelete = async () => {
   if (itemToDelete.value) {
-    await deleteItem(itemToDelete.value.id)
-    itemToDelete.value = null
-    showDeleteModal.value = false
+    isDeleting.value = true
+    try {
+      await deleteItem(itemToDelete.value.id)
+      itemToDelete.value = null
+      showDeleteModal.value = false
+    } finally {
+      isDeleting.value = false
+    }
   }
 }
 </script>
@@ -668,8 +686,12 @@ const handleDelete = async () => {
   color: rgb(var(--color-surface-700));
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(var(--color-surface-300), 0.5);
+}
+
+.btn-secondary:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }
 
 .btn-danger {
@@ -677,8 +699,12 @@ const handleDelete = async () => {
   color: white;
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: rgb(var(--color-error-600));
+}
+
+.btn-danger:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }
 
 @media (max-width: 339px) {

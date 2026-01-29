@@ -157,24 +157,37 @@
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <Teleport to="body">
-      <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
-        <div class="modal-content">
-          <h3 class="modal-title">Delete Item</h3>
-          <p class="modal-description">
-            Are you sure you want to delete this item? This action cannot be undone.
-          </p>
-          <div class="modal-actions">
-            <button class="modal-btn cancel" @click="showDeleteModal = false">
-              Cancel
-            </button>
-            <button class="modal-btn delete" @click="handleDelete">
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <UiModal
+      v-model="showDeleteModal"
+      title="Delete Item"
+      variant="danger"
+      size="md"
+      :close-on-backdrop="!isDeleting"
+      :persistent="isDeleting"
+    >
+      <p class="modal-description">
+        Are you sure you want to delete this item? This action cannot be undone.
+      </p>
+
+      <template #footer>
+        <button class="btn btn-secondary" :disabled="isDeleting" @click="showDeleteModal = false">
+          Cancel
+        </button>
+        <button class="btn btn-danger" :disabled="isDeleting" @click="handleDelete">
+          <svg
+            v-if="isDeleting"
+            class="animate-spin w-4 h-4 mr-2"
+            fill="none"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
+      </template>
+    </UiModal>
   </div>
 </template>
 
@@ -192,6 +205,7 @@ const { fetchSchema } = useSchema()
 
 const isEditing = ref(route.query.edit === 'true')
 const showDeleteModal = ref(false)
+const isDeleting = ref(false)
 
 // Track the currently loaded item ID to detect stale data
 const loadedItemId = ref<string | null>(null)
@@ -273,9 +287,14 @@ const handleUpdate = async (data: Record<string, unknown>) => {
 
 const handleDelete = async () => {
   const id = route.params.id as string
-  const result = await deleteItem(id)
-  if (result.success) {
-    router.push('/')
+  isDeleting.value = true
+  try {
+    const result = await deleteItem(id)
+    if (result.success) {
+      router.push('/')
+    }
+  } finally {
+    isDeleting.value = false
   }
 }
 </script>
@@ -488,52 +507,40 @@ const handleDelete = async () => {
   background: rgb(var(--color-primary-600));
 }
 
-/* Modal */
-.modal-overlay {
-  @apply fixed inset-0 flex items-center justify-center p-4 z-50;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  @apply p-6 rounded-2xl max-w-md w-full;
-  background: rgb(var(--color-surface-50));
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-}
-
-.modal-title {
-  @apply text-lg font-bold mb-2;
-  color: rgb(var(--color-surface-900));
-}
-
+/* Modal description - used by UiModal */
 .modal-description {
   @apply mb-6;
   color: rgb(var(--color-surface-600));
 }
 
-.modal-actions {
-  @apply flex justify-end gap-3;
+/* Modal Buttons */
+.btn {
+  @apply px-4 min-h-[44px] flex items-center justify-center rounded-lg font-medium transition-all;
 }
 
-.modal-btn {
-  @apply px-4 py-2 rounded-lg font-medium transition-all;
-}
-
-.modal-btn.cancel {
+.btn-secondary {
   background: rgba(var(--color-surface-200), 0.5);
   color: rgb(var(--color-surface-700));
 }
 
-.modal-btn.cancel:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(var(--color-surface-300), 0.5);
 }
 
-.modal-btn.delete {
+.btn-secondary:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.btn-danger {
   background: rgb(var(--color-error-500));
   color: white;
 }
 
-.modal-btn.delete:hover {
+.btn-danger:hover:not(:disabled) {
   background: rgb(var(--color-error-600));
+}
+
+.btn-danger:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }
 </style>
