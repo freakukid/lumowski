@@ -24,7 +24,7 @@ const sanitizeColumnName = (name: string): string => {
 const newColumnSchema = z.object({
   name: z.string().min(1, 'Column name is required').max(100, 'Column name is too long').transform(sanitizeColumnName),
   type: z.enum(['text', 'number', 'currency', 'date', 'select']),
-  role: z.enum(['name', 'quantity', 'minQuantity', 'price', 'cost']).optional(),
+  role: z.enum(['name', 'quantity', 'minQuantity', 'price', 'cost', 'barcode']).optional(),
   options: z.array(z.string().max(100)).optional(),
   required: z.boolean().optional(),
 })

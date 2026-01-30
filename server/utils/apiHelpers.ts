@@ -158,7 +158,7 @@ export async function getBusinessSchema(
 
 // Valid column types and roles for validation
 const VALID_COLUMN_TYPES: ColumnType[] = ['text', 'number', 'currency', 'date', 'select']
-const VALID_COLUMN_ROLES: ColumnRole[] = ['name', 'quantity', 'minQuantity', 'price', 'cost']
+const VALID_COLUMN_ROLES: ColumnRole[] = ['name', 'quantity', 'minQuantity', 'price', 'cost', 'barcode']
 
 /**
  * Type guard to check if a value is a valid ColumnDefinition.

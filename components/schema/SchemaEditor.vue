@@ -275,6 +275,7 @@ const ROLE_TYPE_MAP: Record<ColumnRole, ColumnType> = {
   minQuantity: 'number',
   price: 'currency',
   cost: 'currency',
+  barcode: 'text',
 }
 
 const props = defineProps<{
@@ -424,6 +425,7 @@ const getRoleOptions = (currentId: string) => {
     { value: 'minQuantity', label: 'Min Quantity', disabled: isRoleTaken('minQuantity', currentId) },
     { value: 'price', label: 'Price', disabled: isRoleTaken('price', currentId) },
     { value: 'cost', label: 'Cost', disabled: isRoleTaken('cost', currentId) },
+    { value: 'barcode', label: 'Barcode', disabled: isRoleTaken('barcode', currentId) },
   ]
 }
 

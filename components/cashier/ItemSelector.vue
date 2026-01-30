@@ -1,7 +1,7 @@
 <template>
   <div class="item-selector">
-    <!-- Search Input -->
-    <div class="search-wrapper">
+    <!-- Search Input (unified with barcode) -->
+    <div class="search-wrapper" :class="searchWrapperClass">
       <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           stroke-linecap="round"
@@ -11,12 +11,53 @@
         />
       </svg>
       <input
+        ref="inputRef"
         type="search"
-        placeholder="Search items..."
+        :value="searchValue"
+        :placeholder="placeholderText"
         class="search-input"
+        :class="searchInputClass"
+        :disabled="props.isBarcodeLoading"
         @input="handleSearchInput"
+        @keydown.enter="handleEnterKey"
       />
+
+      <!-- Loading spinner (when looking up barcode) -->
+      <div v-if="props.isBarcodeLoading" class="input-loading">
+        <UiSpinner size="sm" />
+      </div>
+
+      <!-- Camera button (mobile only, when barcode enabled, not loading) -->
+      <button
+        v-else-if="props.barcodeEnabled"
+        type="button"
+        class="camera-btn"
+        aria-label="Scan barcode with camera"
+        @click="emit('camera-click')"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+      </button>
     </div>
+
+    <!-- Barcode Error message (below input) -->
+    <Transition name="error-fade">
+      <p v-if="props.barcodeError" class="barcode-error" role="alert">
+        {{ props.barcodeError }}
+      </p>
+    </Transition>
 
     <!-- Items List -->
     <div
@@ -39,21 +80,30 @@
         <span>Loading...</span>
       </div>
 
-      <!-- Empty State -->
-      <div
-        v-if="virtualWindow.isEmpty.value"
-        class="no-items"
-      >
-        <p>{{ virtualWindow.state.value.searchQuery ? 'No items match your search' : 'No items with stock available' }}</p>
-      </div>
-
       <!-- Initial Loading State -->
       <div
-        v-else-if="!hasLoadedOnce && virtualWindow.isLoading.value"
+        v-if="!hasLoadedOnce && virtualWindow.isLoading.value"
         class="loading-state"
       >
         <UiSpinner size="md" />
         <span>Loading items...</span>
+      </div>
+
+      <!-- Search Loading State - show while searching instead of "No items found" -->
+      <div
+        v-else-if="virtualWindow.isLoading.value && virtualWindow.isEmpty.value"
+        class="loading-indicator"
+      >
+        <UiSpinner size="sm" />
+        <span>Searching...</span>
+      </div>
+
+      <!-- Empty State - only show when NOT loading -->
+      <div
+        v-else-if="virtualWindow.isEmpty.value"
+        class="no-items"
+      >
+        <p>{{ virtualWindow.state.value.searchQuery ? 'No items match your search' : 'No items with stock available' }}</p>
       </div>
 
       <!-- Item Rows -->
@@ -184,6 +234,18 @@ const props = defineProps<{
    * Column definitions for displaying item info
    */
   columns: ColumnDefinition[]
+  /**
+   * Whether barcode functionality is enabled (barcode column exists)
+   */
+  barcodeEnabled?: boolean
+  /**
+   * Loading state for barcode lookup
+   */
+  isBarcodeLoading?: boolean
+  /**
+   * Error message for barcode lookup
+   */
+  barcodeError?: string
 }>()
 
 const emit = defineEmits<{
@@ -191,6 +253,18 @@ const emit = defineEmits<{
    * Emitted when selection changes
    */
   'update:modelValue': [value: string[]]
+  /**
+   * Emitted when Enter pressed on barcode-like input
+   */
+  'barcode-submit': [barcode: string]
+  /**
+   * Emitted when camera button clicked
+   */
+  'camera-click': []
+  /**
+   * Emitted when user starts typing (to clear barcode error)
+   */
+  'clear-barcode-error': []
 }>()
 
 const { authFetch } = useAuthFetch()
@@ -201,8 +275,55 @@ const nameColumn = computed(() =>
   props.columns.find((col) => col.role === 'name')
 )
 
+// Find the barcode column for search filtering
+const barcodeColumn = computed(() =>
+  props.columns.find((col) => col.role === 'barcode')
+)
+
+// Build searchColumns to include both name and barcode columns
+const searchColumns = computed(() => {
+  const columns: string[] = []
+  if (nameColumn.value) columns.push(nameColumn.value.id)
+  if (barcodeColumn.value) columns.push(barcodeColumn.value.id)
+  return columns.length > 0 ? columns.join(',') : undefined
+})
+
 // Track if we've loaded at least once (for initial loading state)
 const hasLoadedOnce = ref(false)
+
+// Input element ref for exposed methods
+const inputRef = ref<HTMLInputElement | null>(null)
+
+// Local search value for barcode detection
+const searchValue = ref('')
+
+// Animation states
+const isSuccess = ref(false)
+const isError = ref(false)
+
+/**
+ * Dynamic placeholder based on barcode functionality.
+ */
+const placeholderText = computed(() =>
+  props.barcodeEnabled ? 'Search or scan barcode...' : 'Search items...'
+)
+
+/**
+ * Classes for the search wrapper element.
+ */
+const searchWrapperClass = computed(() => ({
+  'is-loading': props.isBarcodeLoading,
+  'is-success': isSuccess.value,
+  'is-error': isError.value,
+}))
+
+/**
+ * Classes for the search input element.
+ */
+const searchInputClass = computed(() => ({
+  'animate-success': isSuccess.value,
+  'has-camera': props.barcodeEnabled && !props.isBarcodeLoading,
+}))
 
 // Initialize virtual window with inventory fetch function
 const virtualWindow = useVirtualWindow<DynamicInventoryItem>({
@@ -212,8 +333,7 @@ const virtualWindow = useVirtualWindow<DynamicInventoryItem>({
   estimatedItemHeight: 72, // Approximate height of each item row
   searchDebounce: 300,
   fetchFn: async (params) => {
-    // Only search the name column for cashier (simpler, more relevant results)
-    const searchColumns = nameColumn.value ? nameColumn.value.id : undefined
+    // Search both name and barcode columns for cashier
     const response = await authFetch<{
       items: DynamicInventoryItem[]
       pagination: { page: number; limit: number; total: number; totalPages: number }
@@ -222,7 +342,7 @@ const virtualWindow = useVirtualWindow<DynamicInventoryItem>({
         page: params.page,
         limit: params.limit,
         search: params.search,
-        searchColumns: searchColumns, // Single column ID, not comma-separated
+        searchColumns: searchColumns.value, // Name and barcode column IDs
       },
     })
     return response
@@ -244,11 +364,43 @@ const { checkLowStock } = useStockStatus(columnsRef)
 const { formatCurrency } = useCurrency()
 
 /**
+ * Determines if the input looks like a barcode (no spaces, 4+ chars).
+ * Used to decide whether to emit barcode-submit on Enter.
+ */
+function looksLikeBarcode(input: string): boolean {
+  const trimmed = input.trim()
+  if (trimmed.length < 4) return false
+  if (trimmed.includes(' ')) return false
+  return true
+}
+
+/**
  * Handles search input changes.
  */
 function handleSearchInput(event: Event): void {
   const target = event.target as HTMLInputElement
+  searchValue.value = target.value
   virtualWindow.setSearch(target.value)
+
+  // Clear barcode error when typing
+  if (props.barcodeError) {
+    emit('clear-barcode-error')
+  }
+}
+
+/**
+ * Handles Enter key press.
+ * If barcode enabled and input looks like a barcode, emits barcode-submit.
+ */
+function handleEnterKey(): void {
+  const value = searchValue.value.trim()
+  if (!value) return
+
+  // If barcode enabled and input looks like barcode, emit barcode-submit
+  if (props.barcodeEnabled && looksLikeBarcode(value)) {
+    emit('barcode-submit', value)
+  }
+  // Otherwise, input already filtered the list - no additional action needed
 }
 
 /**
@@ -292,6 +444,49 @@ onMounted(async () => {
   hasLoadedOnce.value = true
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Exposed Methods
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Focus the input field programmatically.
+ */
+function focus(): void {
+  inputRef.value?.focus()
+}
+
+/**
+ * Clear the input value.
+ */
+function clear(): void {
+  searchValue.value = ''
+  virtualWindow.setSearch('')
+}
+
+/**
+ * Trigger success animation and clear input.
+ * Used after a successful barcode lookup.
+ */
+function showSuccess(): void {
+  isSuccess.value = true
+  clear()
+  setTimeout(() => {
+    isSuccess.value = false
+  }, 600)
+}
+
+/**
+ * Trigger error animation.
+ * Used when a barcode lookup fails.
+ */
+function showError(): void {
+  isError.value = true
+  setTimeout(() => {
+    isError.value = false
+  }, 400)
+}
+
+defineExpose({ focus, clear, showSuccess, showError })
 </script>
 
 <style scoped>
@@ -329,6 +524,91 @@ onMounted(async () => {
   border-color: rgb(var(--color-primary-500));
   background: rgb(var(--color-surface-50));
   box-shadow: 0 0 0 4px rgba(var(--color-primary-500), 0.1);
+}
+
+.search-input:disabled {
+  @apply cursor-wait opacity-70;
+}
+
+/* Camera button - mobile only */
+.camera-btn {
+  @apply absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center;
+  @apply w-10 h-10 rounded-lg transition-all;
+  background: rgba(var(--color-surface-200), 0.5);
+  color: rgb(var(--color-surface-500));
+}
+
+.camera-btn:hover {
+  background: rgba(var(--color-surface-300), 0.5);
+  color: rgb(var(--color-surface-700));
+}
+
+/* Hide camera button on desktop */
+@media (min-width: 768px) {
+  .camera-btn {
+    @apply hidden;
+  }
+}
+
+/* Adjust input padding when camera visible */
+.search-input.has-camera {
+  @apply pr-14;
+}
+
+@media (min-width: 768px) {
+  .search-input.has-camera {
+    @apply pr-4;
+  }
+}
+
+/* Loading spinner position */
+.input-loading {
+  @apply absolute right-3.5 top-1/2 -translate-y-1/2;
+  color: rgb(var(--color-primary-500));
+}
+
+/* Success animation */
+@keyframes success-flash {
+  0% { background: rgba(var(--color-success-500), 0.05); border-color: rgb(var(--color-success-500)); }
+  50% { background: rgba(var(--color-success-500), 0.15); }
+  100% { background: rgba(var(--color-surface-50), 0.8); border-color: rgba(var(--color-surface-300), 0.5); }
+}
+
+.search-input.animate-success {
+  animation: success-flash 600ms ease-out;
+}
+
+/* Error shake - apply to wrapper */
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.search-wrapper.is-error {
+  animation: error-shake 400ms ease-out;
+}
+
+/* Error message */
+.barcode-error {
+  @apply text-sm mt-1.5;
+  color: rgb(var(--color-error-500));
+}
+
+.error-fade-enter-active, .error-fade-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.error-fade-enter-from, .error-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .search-input.animate-success,
+  .search-wrapper.is-error {
+    animation: none;
+  }
 }
 
 .items-list {

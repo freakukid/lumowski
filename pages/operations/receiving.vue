@@ -117,8 +117,15 @@
             </div>
 
             <OperationsItemSelector
+              ref="itemSelectorRef"
               v-model="selectedItemIds"
               :columns="columns"
+              :barcode-enabled="!!barcodeColumn"
+              :is-barcode-loading="isBarcodeLoading"
+              :barcode-error="barcodeError"
+              @barcode-submit="handleBarcodeSubmit"
+              @camera-click="showBarcodeScanner = true"
+              @clear-barcode-error="handleClearBarcodeError"
             />
           </div>
 
@@ -291,12 +298,22 @@
       </div>
       </template>
     </div>
+
+    <!-- Barcode Scanner Modal -->
+    <CashierBarcodeScannerModal
+      v-model="showBarcodeScanner"
+      :torch-available="hasTorchSupport"
+      @scan="handleBarcodeScan"
+      @permission-denied="handleScannerPermissionDenied"
+      @error="handleScannerError"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { DynamicInventoryItem } from '~/types/schema'
 import { useInventoryStore } from '~/stores/inventory'
+import { useBarcode, playSuccessBeep } from '~/composables/useBarcode'
 
 definePageMeta({
   middleware: 'auth',
@@ -308,6 +325,9 @@ const { sortedColumns: columns } = useInventory()
 const inventoryStore = useInventoryStore()
 const { isLoading: isSubmitting, createReceiving } = useReceiving()
 const { formatCurrency } = useCurrency()
+
+// Barcode composable
+const { lookupBarcode, createScannerDetector, triggerHapticFeedback } = useBarcode()
 
 /**
  * Gets today's date in YYYY-MM-DD format for form default value.
@@ -328,6 +348,15 @@ const formData = ref({
 })
 const errorMessage = ref('')
 
+// Barcode input state
+const barcodeError = ref('')
+const isBarcodeLoading = ref(false)
+const itemSelectorRef = ref<{ focus: () => void; clear: () => void; showSuccess: () => void; showError: () => void } | null>(null)
+
+// Barcode scanner modal state
+const showBarcodeScanner = ref(false)
+const hasTorchSupport = ref(false)
+
 /**
  * Cost column definition (only present when cost tracking is enabled).
  */
@@ -337,6 +366,11 @@ const costColumn = computed(() => columns.value.find((c) => c.role === 'cost'))
  * Quantity column definition (required for receiving operations).
  */
 const quantityColumn = computed(() => columns.value.find((c) => c.role === 'quantity'))
+
+/**
+ * Barcode column definition (optional, enables barcode scanning).
+ */
+const barcodeColumn = computed(() => columns.value.find((c) => c.role === 'barcode'))
 
 /**
  * Whether to show the quantity column reminder notice.
@@ -455,9 +489,124 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Barcode Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Handles barcode submission from manual entry or scanner.
+ * Looks up the item by barcode and adds it to the selection.
+ * Unlike cashier, receiving does NOT check for zero stock - receiving adds inventory.
+ */
+async function handleBarcodeSubmit(barcode: string): Promise<void> {
+  // Early return if empty barcode or already processing a lookup (debouncing)
+  if (!barcode.trim() || isBarcodeLoading.value) return
+
+  barcodeError.value = ''
+  isBarcodeLoading.value = true
+
+  try {
+    const result = await lookupBarcode(barcode)
+
+    if (result.found && result.item) {
+      // Check if item already in selection
+      if (selectedItemIds.value.includes(result.item.id)) {
+        // Increment quantity
+        const currentQty = itemQuantities.value[result.item.id] || 1
+        itemQuantities.value[result.item.id] = currentQty + 1
+      } else {
+        // Add to selection with quantity 1
+        selectedItemIds.value = [...selectedItemIds.value, result.item.id]
+        itemQuantities.value[result.item.id] = 1
+      }
+
+      // Success feedback: haptic vibration and audio beep
+      triggerHapticFeedback('success')
+      playSuccessBeep()
+      itemSelectorRef.value?.showSuccess()
+    } else {
+      // Not found
+      barcodeError.value = result.error || 'Item not found'
+      triggerHapticFeedback('error')
+      itemSelectorRef.value?.showError()
+    }
+  } catch (err) {
+    barcodeError.value = 'Failed to lookup barcode'
+    triggerHapticFeedback('error')
+    itemSelectorRef.value?.showError()
+  } finally {
+    isBarcodeLoading.value = false
+  }
+}
+
+/**
+ * Clears the barcode error message.
+ */
+function handleClearBarcodeError(): void {
+  barcodeError.value = ''
+}
+
+/**
+ * Handles barcode scan from the camera scanner modal.
+ * Processes the barcode through the standard submit handler.
+ */
+function handleBarcodeScan(barcode: string): void {
+  handleBarcodeSubmit(barcode)
+}
+
+/**
+ * Handles camera permission denied from scanner modal.
+ * Shows an appropriate error message to the user.
+ */
+function handleScannerPermissionDenied(): void {
+  barcodeError.value = 'Camera access denied. Please allow camera in your browser settings.'
+}
+
+/**
+ * Handles scanner errors from the modal.
+ * Displays the error message to the user.
+ */
+function handleScannerError(error: Error): void {
+  barcodeError.value = error.message || 'Camera error occurred'
+}
+
+// Track scanner detector cleanup function
+let cleanupScanner: (() => void) | null = null
+
+// Setup USB scanner detector when barcode column exists
+watch(barcodeColumn, (newColumn, oldColumn) => {
+  // Clean up existing detector if any
+  if (cleanupScanner) {
+    cleanupScanner()
+    cleanupScanner = null
+  }
+
+  // Set up new detector if barcode column exists
+  if (newColumn) {
+    cleanupScanner = createScannerDetector((barcode) => {
+      handleBarcodeSubmit(barcode)
+    })
+  }
+}, { immediate: true })
+
 // Fetch schema on mount (items are fetched by ItemSelector with infinite scroll)
 onMounted(async () => {
   await fetchSchema()
+
+  // Auto-focus item selector input if barcode column exists
+  nextTick(() => {
+    if (barcodeColumn.value) {
+      itemSelectorRef.value?.focus()
+    }
+  })
+})
+
+// Cleanup scanner detector on unmount
+onUnmounted(() => {
+  if (cleanupScanner) {
+    cleanupScanner()
+    cleanupScanner = null
+  }
 })
 </script>
 

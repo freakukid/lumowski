@@ -118,7 +118,7 @@ export const columnDefinitionSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, 'Column name is required').max(STRING_LIMITS.columnName, 'Column name is too long'),
   type: z.enum(['text', 'number', 'currency', 'date', 'select']),
-  role: z.enum(['name', 'quantity', 'minQuantity', 'price', 'cost']).optional(),
+  role: z.enum(['name', 'quantity', 'minQuantity', 'price', 'cost', 'barcode']).optional(),
   options: z.array(z.string().max(STRING_LIMITS.columnName, 'Option value is too long')).optional(),
   required: z.boolean().optional(),
   order: z.number().int().min(0),

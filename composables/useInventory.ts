@@ -1,6 +1,7 @@
 import { useInventoryStore } from '~/stores/inventory'
 import { useAuthFetch } from '~/composables/useAuthFetch'
 import { extractApiError } from '~/composables/useApiError'
+import { clearBarcodeCache } from '~/composables/useBarcode'
 import type { DynamicInventoryItem, Pagination } from '~/types/schema'
 
 interface FetchParams {
@@ -73,6 +74,8 @@ export const useInventory = () => {
       })
 
       inventoryStore.addItem(item)
+      // Clear barcode cache since new item may have a barcode
+      clearBarcodeCache()
       return { success: true, data: item }
     } catch (error: unknown) {
       return { success: false, error: extractApiError(error, 'Failed to create item') }
@@ -90,6 +93,8 @@ export const useInventory = () => {
       })
 
       inventoryStore.updateItem(item)
+      // Clear barcode cache since item's barcode may have changed
+      clearBarcodeCache()
       return { success: true, data: item }
     } catch (error: unknown) {
       return { success: false, error: extractApiError(error, 'Failed to update item') }
@@ -106,6 +111,8 @@ export const useInventory = () => {
       })
 
       inventoryStore.removeItem(id)
+      // Clear barcode cache since deleted item's barcode should no longer resolve
+      clearBarcodeCache()
       return { success: true }
     } catch (error: unknown) {
       return { success: false, error: extractApiError(error, 'Failed to delete item') }

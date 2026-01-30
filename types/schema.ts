@@ -15,7 +15,7 @@ export type ColumnType = 'text' | 'number' | 'currency' | 'date' | 'select'
  * Semantic roles that columns can have in the inventory system.
  * These roles are used for special handling (e.g., displaying item name, calculating stock status).
  */
-export type ColumnRole = 'name' | 'quantity' | 'minQuantity' | 'price' | 'cost'
+export type ColumnRole = 'name' | 'quantity' | 'minQuantity' | 'price' | 'cost' | 'barcode'
 
 /**
  * Definition of a single column in the inventory schema.

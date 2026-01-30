@@ -129,7 +129,14 @@
 
               <CashierItemSelector
                 v-model="selectedItemIds"
+                ref="itemSelectorRef"
                 :columns="columns"
+                :barcode-enabled="!!barcodeColumn"
+                :is-barcode-loading="isBarcodeLoading"
+                :barcode-error="barcodeError"
+                @barcode-submit="handleBarcodeSubmit"
+                @camera-click="showBarcodeScanner = true"
+                @clear-barcode-error="handleClearBarcodeError"
               />
             </div>
 
@@ -325,6 +332,7 @@
       v-model="showReceiptModal"
       :operation="completedOperation"
       :settings="businessSettings"
+      :business-name="authStore.businessName || 'Business'"
       @complete="handleReceiptComplete"
     />
 
@@ -373,6 +381,26 @@
         </UiButton>
       </template>
     </UiModal>
+
+    <!-- Barcode Scanner Modal -->
+    <CashierBarcodeScannerModal
+      v-model="showBarcodeScanner"
+      :torch-available="hasTorchSupport"
+      @scan="handleBarcodeScan"
+      @permission-denied="handleScannerPermissionDenied"
+      @error="handleScannerError"
+    />
+
+    <!-- Zero Stock Alert Modal -->
+    <CashierZeroStockAlertModal
+      v-model="showZeroStockModal"
+      :item-name="zeroStockItem?.name || ''"
+      :item-id="zeroStockItem?.id || ''"
+      :can-update-inventory="canManageInventory"
+      :loading="isZeroStockUpdating"
+      @update-and-add="handleZeroStockUpdateAndAdd"
+      @cancel="handleZeroStockCancel"
+    />
   </div>
 </template>
 
@@ -382,6 +410,7 @@ import type { Operation, PaymentMethod, CardType, SplitPaymentEntry, SinglePayme
 import type { BusinessSettings } from '~/types/business'
 import type { ParkedSale, ParkedSaleInput } from '~/types/parked-sale'
 import { useParkedSales } from '~/composables/useParkedSales'
+import { useBarcode, playSuccessBeep } from '~/composables/useBarcode'
 
 definePageMeta({
   middleware: 'auth',
@@ -390,7 +419,7 @@ definePageMeta({
 const router = useRouter()
 const authStore = useAuthStore()
 const { fetchSchema, isLoading: isSchemaLoading } = useSchema()
-const { items, sortedColumns: columns } = useInventory()
+const { items, sortedColumns: columns, updateItem } = useInventory()
 const { isLoading: isSubmitting, createSale } = useSale()
 
 // Initialize socket connection for real-time inventory updates
@@ -414,6 +443,12 @@ const businessSettings = ref<BusinessSettings | null>(null)
  * Check if current user is the business owner.
  */
 const isOwner = computed(() => authStore.isOwner)
+
+/**
+ * Check if current user can manage inventory (OWNER or BOSS roles).
+ * Used for determining if user can quick-update stock from zero.
+ */
+const canManageInventory = computed(() => authStore.canManageInventory)
 
 // Form state
 const selectedItemIds = ref<string[]>([])
@@ -450,6 +485,20 @@ const pendingRetrieveSaleId = ref<string | null>(null)
 // Settings permission modal state (for non-owners)
 const showSettingsPermissionModal = ref(false)
 
+// Barcode input state
+const barcodeError = ref('')
+const isBarcodeLoading = ref(false)
+const itemSelectorRef = ref<{ focus: () => void; clear: () => void; showSuccess: () => void; showError: () => void } | null>(null)
+
+// Barcode scanner modal state
+const showBarcodeScanner = ref(false)
+const hasTorchSupport = ref(false)
+
+// Zero stock modal state
+const showZeroStockModal = ref(false)
+const zeroStockItem = ref<{ id: string; name: string } | null>(null)
+const isZeroStockUpdating = ref(false)
+
 /**
  * Gets today's date in YYYY-MM-DD format for the date input default value.
  */
@@ -467,6 +516,11 @@ const quantityColumn = computed(() => columns.value.find((c) => c.role === 'quan
  * Price column definition (required for sale operations).
  */
 const priceColumn = computed(() => columns.value.find((c) => c.role === 'price'))
+
+/**
+ * Barcode column definition (optional, enables barcode scanning).
+ */
+const barcodeColumn = computed(() => columns.value.find((c) => c.role === 'barcode'))
 
 /**
  * Whether to show the quantity column reminder notice.
@@ -884,6 +938,178 @@ function handleSettingsClick(): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Barcode Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { lookupBarcode, createScannerDetector, triggerHapticFeedback } = useBarcode()
+
+/**
+ * Handles barcode submission from manual entry or scanner.
+ * Looks up the item by barcode and adds it to the cart.
+ * Includes debouncing via isBarcodeLoading check to prevent duplicate lookups.
+ *
+ * If the item has zero stock, shows a modal prompting the user to update
+ * the quantity (if they have permission) or informing them to ask someone.
+ */
+async function handleBarcodeSubmit(barcode: string): Promise<void> {
+  // Early return if empty barcode or already processing a lookup (debouncing)
+  if (!barcode.trim() || isBarcodeLoading.value) return
+
+  barcodeError.value = ''
+  isBarcodeLoading.value = true
+
+  try {
+    const result = await lookupBarcode(barcode)
+
+    if (result.found && result.item) {
+      // Check if item has zero stock
+      const itemStock = getItemQuantity(result.item)
+
+      if (itemStock <= 0) {
+        // Show zero stock modal instead of adding to cart
+        zeroStockItem.value = {
+          id: result.item.id,
+          name: getItemName(result.item),
+        }
+        showZeroStockModal.value = true
+        // Give warning feedback since item can't be added directly
+        triggerHapticFeedback('error')
+        return
+      }
+
+      // Check if item already in cart
+      if (selectedItemIds.value.includes(result.item.id)) {
+        // Increment quantity
+        const currentQty = itemQuantities.value[result.item.id] || 1
+        itemQuantities.value[result.item.id] = currentQty + 1
+      } else {
+        // Add to cart with quantity 1
+        selectedItemIds.value = [...selectedItemIds.value, result.item.id]
+        itemQuantities.value[result.item.id] = 1
+        itemDiscountTypes.value[result.item.id] = 'percent'
+      }
+
+      // Success feedback: haptic vibration and audio beep
+      triggerHapticFeedback('success')
+      playSuccessBeep()
+      itemSelectorRef.value?.showSuccess()
+    } else {
+      // Not found
+      barcodeError.value = result.error || 'Item not found'
+      triggerHapticFeedback('error')
+      itemSelectorRef.value?.showError()
+    }
+  } catch (err) {
+    barcodeError.value = 'Failed to lookup barcode'
+    triggerHapticFeedback('error')
+    itemSelectorRef.value?.showError()
+  } finally {
+    isBarcodeLoading.value = false
+  }
+}
+
+/**
+ * Clears the barcode error message.
+ */
+function handleClearBarcodeError(): void {
+  barcodeError.value = ''
+}
+
+/**
+ * Handles barcode scan from the camera scanner modal.
+ * Processes the barcode through the standard submit handler.
+ */
+function handleBarcodeScan(barcode: string): void {
+  handleBarcodeSubmit(barcode)
+}
+
+/**
+ * Handles camera permission denied from scanner modal.
+ * Shows an appropriate error message to the user.
+ */
+function handleScannerPermissionDenied(): void {
+  barcodeError.value = 'Camera access denied. Please allow camera in your browser settings.'
+}
+
+/**
+ * Handles scanner errors from the modal.
+ * Displays the error message to the user.
+ */
+function handleScannerError(error: Error): void {
+  barcodeError.value = error.message || 'Camera error occurred'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Zero Stock Handling Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Handles the "Update & Add" action from the zero stock modal.
+ * Updates the item's quantity to 1 in the database and adds it to the cart.
+ * Preserves all existing item data fields while only updating the quantity.
+ */
+async function handleZeroStockUpdateAndAdd(itemId: string): Promise<void> {
+  if (!zeroStockItem.value || !quantityColumn.value) return
+
+  isZeroStockUpdating.value = true
+
+  try {
+    // Find the existing item to preserve all its data
+    const existingItem = items.value.find(item => item.id === itemId)
+    if (!existingItem) {
+      barcodeError.value = 'Item not found in inventory'
+      triggerHapticFeedback('error')
+      return
+    }
+
+    // Merge existing data with the quantity update to preserve all other fields
+    // The API replaces the entire data object, so we must send complete data
+    const updateData: Record<string, unknown> = {
+      ...existingItem.data,
+      [quantityColumn.value.id]: 1,
+    }
+
+    const result = await updateItem(itemId, updateData)
+
+    if (result.success) {
+      // Add item to cart
+      if (!selectedItemIds.value.includes(itemId)) {
+        selectedItemIds.value = [...selectedItemIds.value, itemId]
+        itemQuantities.value[itemId] = 1
+        itemDiscountTypes.value[itemId] = 'percent'
+      }
+
+      // Success feedback
+      triggerHapticFeedback('success')
+      playSuccessBeep()
+      itemSelectorRef.value?.showSuccess()
+
+      // Close modal and reset state
+      showZeroStockModal.value = false
+      zeroStockItem.value = null
+    } else {
+      // Show error message
+      barcodeError.value = result.error || 'Failed to update inventory'
+      triggerHapticFeedback('error')
+    }
+  } catch {
+    barcodeError.value = 'Failed to update inventory'
+    triggerHapticFeedback('error')
+  } finally {
+    isZeroStockUpdating.value = false
+  }
+}
+
+/**
+ * Handles cancel action from the zero stock modal.
+ * Resets the zero stock state without making any changes.
+ */
+function handleZeroStockCancel(): void {
+  showZeroStockModal.value = false
+  zeroStockItem.value = null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Hold Sale Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1035,6 +1261,10 @@ function handleDeleteSale(saleId: string): void {
 // Fetch data on mount
 onMounted(async () => {
   const { initAuth } = useAuth()
+  const { preloadLibraries } = useReceipt()
+
+  // Preload receipt libraries in background (non-blocking)
+  preloadLibraries()
 
   // Ensure auth is initialized before making API calls
   // This prevents 400 errors on direct page load when tokens aren't loaded yet
@@ -1058,6 +1288,40 @@ onMounted(async () => {
   await fetchSchema()
   // Note: Item fetching is now handled by ItemSelector via useVirtualWindow composable
   // which provides memory-efficient infinite scrolling with on-demand loading
+
+  // Auto-focus item selector input if barcode column exists
+  nextTick(() => {
+    if (barcodeColumn.value) {
+      itemSelectorRef.value?.focus()
+    }
+  })
+})
+
+// Track scanner detector cleanup function
+let cleanupScanner: (() => void) | null = null
+
+// Setup USB scanner detector when barcode column exists
+watch(barcodeColumn, (newColumn, oldColumn) => {
+  // Clean up existing detector if any
+  if (cleanupScanner) {
+    cleanupScanner()
+    cleanupScanner = null
+  }
+
+  // Set up new detector if barcode column exists
+  if (newColumn) {
+    cleanupScanner = createScannerDetector((barcode) => {
+      handleBarcodeSubmit(barcode)
+    })
+  }
+}, { immediate: true })
+
+// Cleanup scanner detector on unmount
+onUnmounted(() => {
+  if (cleanupScanner) {
+    cleanupScanner()
+    cleanupScanner = null
+  }
 })
 </script>
 
