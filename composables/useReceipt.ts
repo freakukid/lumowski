@@ -3,6 +3,16 @@ import type { EmailReceiptPayload, ReceiptApiResponse } from '~/types/receipt'
 import { extractApiError } from '~/composables/useApiError'
 import { useAuthFetch } from '~/composables/useAuthFetch'
 
+// Module-level cache for heavy library imports
+// This avoids re-importing jsPDF and html2canvas on each generatePDF call
+let jsPDFModule: typeof import('jspdf') | null = null
+let html2canvasModule: typeof import('html2canvas') | null = null
+
+// PDF generation constants
+const CANVAS_SCALE = 2 // 2x scale for high-DPI/retina displays
+const IMAGE_LOAD_TIMEOUT_MS = 5000 // Max wait time for external images
+const RECEIPT_WIDTH_PT = 227 // 80mm thermal receipt width at 72 DPI
+
 /**
  * Composable for receipt generation, printing, and emailing.
  *
@@ -62,11 +72,18 @@ export const useReceipt = () => {
     error.value = null
 
     try {
-      // Dynamic imports to avoid bundling these large libraries on initial load
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import('jspdf'),
-        import('html2canvas'),
-      ])
+      // Use cached imports or dynamically import if not yet loaded
+      // This avoids re-importing on each generatePDF call while still code-splitting
+      if (!jsPDFModule || !html2canvasModule) {
+        const [jsPDF, html2canvas] = await Promise.all([
+          import('jspdf'),
+          import('html2canvas'),
+        ])
+        jsPDFModule = jsPDF
+        html2canvasModule = html2canvas
+      }
+      const jsPDF = jsPDFModule.default
+      const html2canvas = html2canvasModule.default
 
       // Clone the element to avoid modifying the original
       const clonedElement = element.cloneNode(true) as HTMLElement
@@ -90,6 +107,7 @@ export const useReceipt = () => {
 
       // Wait for images to load (especially the business logo)
       const images = clonedElement.querySelectorAll('img')
+      let failedImageCount = 0
       await Promise.all(
         Array.from(images).map((img) => {
           return new Promise<void>((resolve) => {
@@ -98,7 +116,9 @@ export const useReceipt = () => {
             } else {
               img.onload = () => resolve()
               img.onerror = () => {
-                // Remove broken images to prevent canvas errors
+                // Track failed images and hide them to prevent canvas errors
+                failedImageCount++
+                console.warn('Receipt image failed to load:', img.src)
                 img.style.display = 'none'
                 resolve()
               }
@@ -115,18 +135,28 @@ export const useReceipt = () => {
         })
       )
 
-      // Small delay to ensure rendering is complete
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Warn if any images failed to load
+      if (failedImageCount > 0) {
+        console.warn(`${failedImageCount} image(s) failed to load in receipt`)
+      }
+
+      // Wait for browser to complete layout and paint
+      // Double requestAnimationFrame ensures the browser has painted the element
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve())
+        })
+      })
 
       // Render the element to canvas
       // Note: allowTaint must be false when useCORS is true to avoid tainted canvas
       const canvas = await html2canvas(clonedElement, {
-        scale: 2, // Higher scale for better quality
+        scale: CANVAS_SCALE,
         useCORS: true, // Allow cross-origin images with CORS headers
         allowTaint: false, // Must be false to allow toDataURL() after CORS images
         backgroundColor: '#ffffff',
         logging: false,
-        imageTimeout: 5000, // 5 second timeout for images
+        imageTimeout: IMAGE_LOAD_TIMEOUT_MS,
         onclone: (clonedDoc: Document) => {
           // Ensure the cloned element is visible in the cloned document
           const clonedTarget = clonedDoc.body.querySelector('.receipt-template') as HTMLElement
@@ -136,8 +166,10 @@ export const useReceipt = () => {
         },
       })
 
-      // Clean up the temporary container
-      document.body.removeChild(tempContainer)
+      // Clean up the temporary container (defensive check in case DOM was modified)
+      if (tempContainer.parentNode === document.body) {
+        document.body.removeChild(tempContainer)
+      }
 
       // Validate canvas has content
       if (canvas.width === 0 || canvas.height === 0) {
@@ -145,16 +177,14 @@ export const useReceipt = () => {
       }
 
       // Calculate dimensions for receipt format (80mm wide)
-      // 80mm = ~3.15 inches, at 72 DPI = ~227 points
-      const receiptWidth = 227
-      const imgWidth = receiptWidth
+      const imgWidth = RECEIPT_WIDTH_PT
       const imgHeight = (canvas.height * imgWidth) / canvas.width
 
       // Create PDF with receipt dimensions
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'pt',
-        format: [receiptWidth, imgHeight + 20], // Add some padding
+        format: [RECEIPT_WIDTH_PT, imgHeight + 20], // Add some padding
       })
 
       // Get canvas as image data
@@ -438,6 +468,26 @@ export const useReceipt = () => {
     }
   }
 
+  /**
+   * Preloads jsPDF and html2canvas libraries in the background.
+   * Call this when navigating to pages that may generate receipts.
+   * Does nothing if libraries are already cached.
+   */
+  const preloadLibraries = async (): Promise<void> => {
+    if (jsPDFModule && html2canvasModule) return
+
+    // Preload in background without blocking
+    Promise.all([
+      import('jspdf'),
+      import('html2canvas'),
+    ]).then(([jsPDF, html2canvas]) => {
+      jsPDFModule = jsPDF
+      html2canvasModule = html2canvas
+    }).catch(() => {
+      // Silently fail - will retry on actual use
+    })
+  }
+
   return {
     // State
     isLoading,
@@ -453,5 +503,6 @@ export const useReceipt = () => {
     printThermal,
     testThermalPrinter,
     sendEmail,
+    preloadLibraries,
   }
 }

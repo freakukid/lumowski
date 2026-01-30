@@ -92,74 +92,69 @@
         <div
           v-for="business in businesses"
           :key="business.id"
-          class="business-card-wrapper group"
+          class="business-card"
+          :class="{
+            'is-selecting': selectingId === business.id,
+            'is-current': currentBusinessId === business.id
+          }"
+          @click="handleSelectBusiness(business)"
+          role="button"
+          tabindex="0"
+          @keydown.enter="handleSelectBusiness(business)"
+          @keydown.space.prevent="handleSelectBusiness(business)"
         >
-          <button
-            @click="handleSelectBusiness(business)"
-            class="business-card"
-            :class="{
-              'is-selecting': selectingId === business.id,
-              'is-current': currentBusinessId === business.id
-            }"
-            :disabled="selectingId !== null || isDeletingBusiness"
-          >
-            <div class="card-content">
-              <div class="business-icon">
-                <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div class="business-info">
-                <h3 class="business-name">{{ business.name }}</h3>
-                <div class="business-meta">
-                  <span v-if="currentBusinessId === business.id" class="current-badge">
-                    Current
-                  </span>
-                  <span class="role-badge" :class="getRoleBadgeClass(business.role)">
-                    {{ formatRole(business.role) }}
-                  </span>
-                  <span class="member-count">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    {{ business.memberCount }} {{ business.memberCount === 1 ? 'member' : 'members' }}
-                  </span>
-                </div>
-              </div>
-              <div class="card-arrow">
-                <div v-if="selectingId === business.id" class="loading-spinner small"></div>
-                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
+          <!-- Left: Icon -->
+          <div class="business-icon">
+            <svg class="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+
+          <!-- Center: Info -->
+          <div class="business-info">
+            <div class="business-header">
+              <h3 class="business-name">{{ business.name }}</h3>
+              <span v-if="currentBusinessId === business.id" class="current-badge">
+                Current
+              </span>
             </div>
-          </button>
-          <!-- Card action buttons container -->
-          <div class="card-actions">
-            <!-- Manage Business button (OWNER and BOSS roles) -->
+            <div class="business-meta-primary">
+              <span class="role-badge" :class="getRoleBadgeClass(business.role)">
+                {{ formatRole(business.role) }}
+              </span>
+              <span class="meta-separator">·</span>
+              <span class="member-count">{{ business.memberCount }} {{ business.memberCount === 1 ? 'member' : 'members' }}</span>
+            </div>
+          </div>
+
+          <!-- Right: Actions (ALWAYS VISIBLE) -->
+          <div class="business-actions">
+            <!-- Settings button (OWNER and BOSS roles) -->
             <button
               v-if="business.role === 'OWNER' || business.role === 'BOSS'"
-              class="card-action-btn card-manage-btn"
-              title="Manage business settings"
-              :disabled="managingBusinessId === business.id"
+              class="action-btn action-settings"
+              :aria-label="`Manage settings for ${business.name}`"
+              title="Business settings"
+              :disabled="managingBusinessId === business.id || selectingId !== null"
               @click.stop="handleManageBusiness(business)"
             >
               <span v-if="managingBusinessId === business.id" class="loading-spinner small"></span>
-              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
-            <!-- Delete button (OWNER only) -->
+            <!-- Select button -->
             <button
-              v-if="business.role === 'OWNER'"
-              @click.stop="openDeleteModal(business)"
-              class="card-action-btn card-delete-btn"
-              title="Delete business"
-              :disabled="isDeletingBusiness"
+              class="action-btn action-select"
+              :aria-label="`Select ${business.name}`"
+              title="Select business"
+              :disabled="selectingId !== null"
+              @click.stop="handleSelectBusiness(business)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <div v-if="selectingId === business.id" class="loading-spinner small"></div>
+              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -203,86 +198,6 @@
       </div>
     </div>
 
-    <!-- Delete Business Confirmation Modal -->
-    <UiModal
-      v-model="showDeleteModal"
-      title="Delete Business"
-      variant="danger"
-      size="lg"
-      :close-on-backdrop="!isDeletingBusiness"
-    >
-      <div class="space-y-4">
-        <!-- Business Name -->
-        <p class="delete-modal-text">
-          You are about to delete <strong>{{ businessToDelete?.name }}</strong>
-        </p>
-
-        <!-- Consequences List -->
-        <div class="delete-consequences">
-          <p class="delete-consequences-title">This will permanently delete:</p>
-          <ul class="delete-consequences-list">
-            <li>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              All inventory items
-            </li>
-            <li>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              All team members ({{ businessToDelete?.memberCount || 0 }} members)
-            </li>
-            <li>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-              </svg>
-              All invite codes
-            </li>
-            <li>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
-              </svg>
-              Column schema configuration
-            </li>
-          </ul>
-        </div>
-
-        <!-- Warning Box -->
-        <div class="delete-warning-box">
-          <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>This action cannot be undone.</span>
-        </div>
-
-        <!-- Confirmation Input -->
-        <div class="form-group">
-          <label class="form-label">
-            Type <strong>{{ businessToDelete?.name }}</strong> to confirm
-          </label>
-          <input
-            v-model="deleteConfirmation"
-            type="text"
-            :placeholder="businessToDelete?.name"
-            class="form-input"
-            autocomplete="off"
-          />
-        </div>
-      </div>
-
-      <template #footer>
-        <button @click="closeDeleteModal" class="btn-secondary min-h-[44px]">Cancel</button>
-        <button
-          @click="handleDeleteBusiness"
-          :disabled="!canConfirmDelete || isDeletingBusiness"
-          class="btn-delete min-h-[44px]"
-        >
-          <span v-if="isDeletingBusiness" class="loading-spinner"></span>
-          <span v-else>Delete Business</span>
-        </button>
-      </template>
-    </UiModal>
   </div>
 </template>
 
@@ -298,7 +213,7 @@ definePageMeta({
 const router = useRouter()
 const authStore = useAuthStore()
 const { logout } = useAuth()
-const { joinBusiness, deleteBusinessById, isLoading: isJoiningBusiness } = useBusiness()
+const { joinBusiness } = useBusiness()
 
 const isLoading = ref(true)
 const businesses = ref<UserBusinessInfo[]>([])
@@ -308,18 +223,6 @@ const inviteCode = ref('')
 const joinError = ref('')
 const isJoining = ref(false)
 const managingBusinessId = ref<string | null>(null)
-
-// Delete business modal state
-const showDeleteModal = ref(false)
-const businessToDelete = ref<UserBusinessInfo | null>(null)
-const deleteConfirmation = ref('')
-const isDeletingBusiness = ref(false)
-
-// Computed: can confirm delete (business name matches)
-const canConfirmDelete = computed(() => {
-  if (!businessToDelete.value?.name) return false
-  return deleteConfirmation.value === businessToDelete.value.name
-})
 
 // Currently selected business (if any) - for showing "current" indicator
 const currentBusinessId = computed(() => authStore.businessId)
@@ -425,36 +328,6 @@ const goToSetup = () => {
 
 const handleLogout = () => {
   logout()
-}
-
-// Delete business modal functions
-const openDeleteModal = (business: UserBusinessInfo) => {
-  businessToDelete.value = business
-  showDeleteModal.value = true
-}
-
-const closeDeleteModal = () => {
-  showDeleteModal.value = false
-  businessToDelete.value = null
-  deleteConfirmation.value = ''
-}
-
-const handleDeleteBusiness = async () => {
-  if (!canConfirmDelete.value || !businessToDelete.value) return
-
-  isDeletingBusiness.value = true
-  try {
-    await deleteBusinessById(businessToDelete.value.id)
-    // Update the local businesses list
-    businesses.value = businesses.value.filter(
-      (b) => b.id !== businessToDelete.value?.id
-    )
-    closeDeleteModal()
-  } catch {
-    // Error is handled in composable
-  } finally {
-    isDeletingBusiness.value = false
-  }
 }
 
 const formatRole = (role: BusinessRole): string => {
@@ -691,22 +564,22 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   grid-template-columns: 1fr;
 }
 
-/* Business Card */
+/* Business Card - New Design */
 .business-card {
-  @apply relative p-4 md:p-5 rounded-2xl text-left transition-all duration-200 w-full min-h-[100px];
+  @apply flex items-start gap-4 p-5 rounded-2xl cursor-pointer transition-all duration-200;
   background: rgba(var(--color-surface-100), 0.8);
-  backdrop-filter: blur(20px);
   border: 2px solid rgba(var(--color-surface-300), 0.3);
 }
 
-.business-card:hover:not(:disabled) {
+.business-card:hover {
   transform: translateY(-2px);
   border-color: rgb(var(--color-primary-500));
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
-.business-card:disabled {
-  @apply opacity-70 cursor-not-allowed;
+.business-card:focus-visible {
+  outline: 2px solid rgb(var(--color-primary-500));
+  outline-offset: 2px;
 }
 
 .business-card.is-selecting {
@@ -719,41 +592,43 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   background: rgba(var(--color-accent-500), 0.05);
 }
 
-.business-card.is-current:hover:not(:disabled) {
+.business-card.is-current:hover {
   border-color: rgb(var(--color-accent-600));
 }
 
-.card-content {
-  @apply flex items-center gap-3;
-}
-
+/* Business Icon */
 .business-icon {
-  @apply w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center flex-shrink-0;
+  @apply w-14 h-14 flex-shrink-0 rounded-xl flex items-center justify-center text-white;
   background: linear-gradient(135deg, rgb(var(--color-primary-500)), rgb(var(--color-accent-500)));
-  color: white;
 }
 
+/* Business Info */
 .business-info {
   @apply flex-1 min-w-0;
 }
 
+.business-header {
+  @apply flex items-center gap-2 flex-wrap;
+}
+
 .business-name {
-  @apply text-base md:text-lg font-semibold truncate;
+  @apply text-lg font-semibold truncate;
   color: rgb(var(--color-surface-900));
 }
 
-.business-meta {
-  @apply flex flex-wrap items-center gap-2 mt-1;
+.current-badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  background: rgba(34, 197, 94, 0.15);
+  color: rgb(22, 163, 74);
+}
+
+/* Business Meta */
+.business-meta-primary {
+  @apply flex items-center flex-wrap gap-2 text-sm mt-1;
 }
 
 .role-badge {
   @apply px-2 py-0.5 rounded-full text-xs font-semibold;
-}
-
-.current-badge {
-  @apply px-2 py-0.5 rounded-full text-xs font-semibold;
-  background: rgba(var(--color-success-500), 0.15);
-  color: rgb(var(--color-success-600));
 }
 
 .role-owner {
@@ -771,14 +646,60 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   color: rgb(var(--color-surface-600));
 }
 
+.meta-separator {
+  @apply text-xs;
+  color: rgb(var(--color-surface-400));
+}
+
 .member-count {
-  @apply flex items-center gap-1 text-xs;
+  @apply text-sm;
+  color: rgb(var(--color-surface-600));
+}
+
+/* Business Actions - Always Visible */
+.business-actions {
+  @apply flex items-center gap-2 flex-shrink-0;
+}
+
+.action-btn {
+  @apply w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200;
+}
+
+.action-btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid rgb(var(--color-primary-500));
+  outline-offset: 2px;
+}
+
+/* Settings Button */
+.action-settings {
+  background: rgba(var(--color-surface-200), 0.5);
   color: rgb(var(--color-surface-500));
 }
 
-.card-arrow {
-  @apply flex-shrink-0;
-  color: rgb(var(--color-surface-400));
+.action-settings:hover:not(:disabled) {
+  background: rgba(var(--color-primary-500), 0.1);
+  color: rgb(var(--color-primary-600));
+}
+
+/* Select Button */
+.action-select {
+  background: rgba(var(--color-primary-500), 0.1);
+  color: rgb(var(--color-primary-500));
+}
+
+.action-select:hover:not(:disabled) {
+  background: rgba(var(--color-primary-500), 0.2);
+}
+
+/* Mobile Responsive - Stack actions vertically on very small screens */
+@media (max-width: 480px) {
+  .business-actions {
+    @apply flex-col;
+  }
 }
 
 /* Create Card */
@@ -867,169 +788,4 @@ const getRoleBadgeClass = (role: BusinessRole): string => {
   opacity: 0;
 }
 
-/* Business Card Wrapper */
-.business-card-wrapper {
-  @apply relative;
-}
-
-/* Card Actions Container */
-.card-actions {
-  @apply absolute top-1/2 -translate-y-1/2 right-3 flex flex-nowrap items-center gap-2 z-10 mr-4;
-  width: 100px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-/* Card Action Button - base styles */
-.card-action-btn {
-  @apply w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg transition-all;
-}
-
-/* Manage Button */
-.card-manage-btn {
-  background: rgba(var(--color-primary-500), 0.08);
-  color: rgb(var(--color-primary-500));
-}
-
-.card-manage-btn:hover {
-  background: rgba(var(--color-primary-500), 0.15);
-  color: rgb(var(--color-primary-600));
-}
-
-.card-manage-btn:focus-visible {
-  outline: 2px solid rgb(var(--color-primary-500));
-  outline-offset: 2px;
-}
-
-/* Delete Button */
-.card-delete-btn {
-  background: rgba(var(--color-error-500), 0.08);
-  color: rgb(var(--color-error-500));
-}
-
-.card-delete-btn:hover {
-  background: rgba(var(--color-error-500), 0.15);
-  color: rgb(var(--color-error-600));
-}
-
-.card-delete-btn:focus-visible {
-  outline: 2px solid rgb(var(--color-error-500));
-  outline-offset: 2px;
-}
-
-.card-delete-btn:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-/* Show action buttons on hover (desktop) */
-.business-card-wrapper:hover .card-actions {
-  opacity: 1;
-}
-
-/* Show action buttons on focus within (keyboard navigation) */
-.card-actions:focus-within {
-  opacity: 1;
-}
-
-/* Always show action buttons on mobile for better discoverability */
-@media (max-width: 768px) {
-  .card-actions {
-    opacity: 1;
-  }
-}
-
-/* Delete Modal Content Styles */
-.delete-modal-text {
-  @apply text-sm;
-  color: rgb(var(--color-surface-700));
-}
-
-.delete-modal-text strong {
-  @apply font-semibold;
-  color: rgb(var(--color-surface-900));
-}
-
-.delete-consequences {
-  @apply p-4 rounded-lg;
-  background: rgba(var(--color-surface-100), 0.8);
-  border: 1px solid rgba(var(--color-surface-200), 0.8);
-}
-
-.delete-consequences-title {
-  @apply text-xs font-semibold uppercase tracking-wider mb-3;
-  color: rgb(var(--color-surface-500));
-}
-
-.delete-consequences-list {
-  @apply space-y-2;
-}
-
-.delete-consequences-list li {
-  @apply flex items-center gap-2 text-sm;
-  color: rgb(var(--color-surface-600));
-}
-
-.delete-consequences-list svg {
-  @apply flex-shrink-0;
-  color: rgb(var(--color-surface-400));
-}
-
-.delete-warning-box {
-  @apply flex items-center gap-3 p-4 rounded-lg text-sm font-medium;
-  background: rgba(var(--color-error-500), 0.08);
-  border: 1px solid rgba(var(--color-error-500), 0.15);
-  color: rgb(var(--color-error-600));
-}
-
-/* Form Styles */
-.form-group {
-  @apply space-y-1;
-}
-
-.form-label {
-  @apply block text-sm font-medium;
-  color: rgb(var(--color-surface-700));
-}
-
-.form-label strong {
-  @apply font-semibold;
-  color: rgb(var(--color-surface-900));
-}
-
-.form-input {
-  @apply w-full px-3 py-2 rounded-lg text-sm min-h-[44px];
-  background: rgb(var(--color-surface-50));
-  border: 1px solid rgb(var(--color-surface-300));
-  color: rgb(var(--color-surface-900));
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: rgb(var(--color-primary-500));
-  box-shadow: 0 0 0 3px rgba(var(--color-primary-500), 0.1);
-}
-
-/* Buttons */
-.btn-secondary {
-  @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors;
-  background: rgb(var(--color-surface-200));
-  color: rgb(var(--color-surface-700));
-}
-
-.btn-secondary:hover {
-  background: rgb(var(--color-surface-300));
-}
-
-.btn-delete {
-  @apply px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors flex items-center justify-center gap-2;
-  background: rgb(var(--color-error-600));
-}
-
-.btn-delete:hover:not(:disabled) {
-  background: rgb(var(--color-error-700));
-}
-
-.btn-delete:disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
 </style>

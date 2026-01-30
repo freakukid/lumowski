@@ -162,16 +162,7 @@ defineExpose({
 // Use composables for formatting
 const { formatCondition } = useReturnFormatting()
 const { formatRefundMethod: formatRefundMethodBase } = usePaymentFormatting()
-
-/**
- * Formats a number as USD currency.
- */
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount)
-}
+const { formatCurrency } = useCurrency()
 
 /**
  * Computed formatted date string.

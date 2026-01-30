@@ -101,8 +101,8 @@
       </Transition>
     </div>
 
-    <!-- Receipt Template for PDF generation (visually hidden but rendered) -->
-    <div class="receipt-container" aria-hidden="true">
+    <!-- Receipt Template for PDF generation (lazy rendered only when needed) -->
+    <div v-if="isPreparingReceipt" class="receipt-container" aria-hidden="true">
       <!-- Use ReturnReceiptTemplate for RETURN operations, ReceiptTemplate for SALE -->
       <ReturnsReturnReceiptTemplate
         v-if="isReturnOperation"
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { shallowRef } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 import type { Operation } from '~/types/operation'
 import type { BusinessSettings } from '~/types/business'
@@ -161,7 +162,7 @@ const emit = defineEmits<{
 }>()
 
 // Receipt composable
-const { generatePDF, printBrowser, printThermal, sendEmail, isPrinting, isSendingEmail, error: receiptError } = useReceipt()
+const { generatePDF, printBrowser, printThermal, sendEmail, isPrinting, isSendingEmail, isLoading: isReceiptLoading, error: receiptError } = useReceipt()
 
 // Auth store for API calls
 const authStore = useAuthStore()
@@ -174,8 +175,12 @@ const errorMessage = ref('')
 const originalSale = ref<Operation | null>(null)
 const isLoadingOriginalSale = ref(false)
 
-// Template ref for the receipt component
-const receiptTemplateRef = ref<{ receiptRef: HTMLElement | null } | null>(null)
+// Controls when the receipt template is rendered in DOM
+// Only true when we need to generate PDF (for print or email)
+const isPreparingReceipt = ref(false)
+
+// Template ref for the receipt component (shallowRef for performance - we only need the ref, not deep reactivity)
+const receiptTemplateRef = shallowRef<{ receiptRef: HTMLElement | null } | null>(null)
 
 /**
  * Whether the current operation is a RETURN type.
@@ -224,20 +229,29 @@ async function handlePrint() {
   try {
     // Check if thermal printer is configured
     if (props.settings?.thermalPrinterEnabled && props.settings.thermalPrinterAddress && props.operation) {
-      // Print to thermal printer via API
+      // Print to thermal printer via API (no need for receipt template)
       await printThermal(props.operation.id)
     } else {
-      // Fall back to browser print
+      // Browser print requires the receipt template
+      // Enable receipt template rendering and wait for Vue to mount it
+      isPreparingReceipt.value = true
+      await nextTick()
+      await nextTick()
+
       const receiptElement = receiptTemplateRef.value?.receiptRef
       if (!receiptElement) {
         throw new Error('Receipt template not available')
       }
       await printBrowser(receiptElement)
+
+      // Clean up: hide the receipt template after printing
+      isPreparingReceipt.value = false
     }
 
     // Close modal after successful print
     emit('update:modelValue', false)
   } catch (err) {
+    isPreparingReceipt.value = false
     errorMessage.value = err instanceof Error ? err.message : 'Failed to print receipt'
   }
 }
@@ -260,6 +274,11 @@ async function handleSendEmail() {
   emailError.value = ''
 
   try {
+    // Enable receipt template rendering and wait for Vue to mount it
+    isPreparingReceipt.value = true
+    await nextTick()
+    await nextTick()
+
     // Get the receipt element
     const receiptElement = receiptTemplateRef.value?.receiptRef
     if (!receiptElement) {
@@ -268,6 +287,9 @@ async function handleSendEmail() {
 
     // Generate PDF from receipt
     const pdfBase64 = await generatePDF(receiptElement)
+
+    // Clean up: hide the receipt template after PDF generation
+    isPreparingReceipt.value = false
 
     // Send email via API
     await sendEmail({
@@ -279,6 +301,7 @@ async function handleSendEmail() {
     // Close modal after successful send
     emit('update:modelValue', false)
   } catch (err) {
+    isPreparingReceipt.value = false
     const message = err instanceof Error ? err.message : 'Failed to send email'
     emailError.value = message
     errorMessage.value = message
@@ -308,28 +331,36 @@ async function fetchOriginalSale(saleId: string): Promise<void> {
 
 /**
  * Reset state when modal opens.
+ * Uses watch with immediate: false to handle async operations.
  */
 watch(() => props.modelValue, async (isOpen) => {
-  if (isOpen) {
-    showEmailInput.value = props.initialShowEmail ?? false
-    emailAddress.value = ''
-    emailError.value = ''
-    errorMessage.value = ''
-    originalSale.value = null
+  // Don't run reactive effects when modal is closed
+  if (!isOpen) return
 
-    // Fetch original sale for RETURN operations
-    if (props.operation?.type === 'RETURN' && props.operation.originalSaleId) {
-      await fetchOriginalSale(props.operation.originalSaleId)
-    }
+  // Reset state when modal opens
+  showEmailInput.value = props.initialShowEmail ?? false
+  emailAddress.value = ''
+  emailError.value = ''
+  errorMessage.value = ''
+  originalSale.value = null
+  isPreparingReceipt.value = false
+
+  // Fetch original sale for RETURN operations
+  if (props.operation?.type === 'RETURN' && props.operation.originalSaleId) {
+    await fetchOriginalSale(props.operation.originalSaleId)
   }
 })
 
 /**
  * Sync receipt error to errorMessage.
+ * Uses watchEffect with early return to avoid running when modal is closed.
  */
-watch(receiptError, (err) => {
-  if (err) {
-    errorMessage.value = err
+watchEffect(() => {
+  // Don't run when modal is closed
+  if (!props.modelValue) return
+
+  if (receiptError.value) {
+    errorMessage.value = receiptError.value
   }
 })
 </script>

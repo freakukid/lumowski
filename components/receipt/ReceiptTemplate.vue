@@ -150,15 +150,8 @@ defineExpose({
   receiptRef,
 })
 
-/**
- * Formats a number as USD currency.
- */
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount)
-}
+// Currency formatting
+const { formatCurrency } = useCurrency()
 
 /**
  * Formats a discount value for display.
